@@ -1,7 +1,3 @@
->  资料来源于网上
->
-> C++ 主要来源：崔sir的Mooc网课
-
 # C
 
 ## 预处理与编译
@@ -1751,6 +1747,12 @@ class A{
 
 
 
+### 内部类
+
+
+
+
+
 ## union
 
 union意为联合，翻译为共用体，或是联合体。它是C++11引入的一种特殊的类。通过关键字`union`进行定义，一个union类型内可以定义多种不同的数据类型，这些数据共享同一段内存，以达到节省空间的目的。
@@ -2819,9 +2821,52 @@ vector占用的内存实际上是由vector实例管理的。其之所以没有�
 
 #### remove
 
+位于头文件 `<algorithm>`内。
 
+会将所有符合值的成员移动到容器后面（注意，并没有真正删除），并返回这些值的第一个迭代器（也就是移动后剩余值列表的`end()`）。
+
+其函数原型如下
+
+```c++
+template< class ForwardIt, class T >
+ForwardIt remove( ForwardIt first, ForwardIt last, const T& value );//first,last都是迭代器，value是值或对象，返回新值范围的尾后迭代器
+```
+
+则可以较为方便地删除容器内某一特点值的所有元素。操作如下
+
+```c++
+vector<int> list;
+// ... 对list操作
+list.erase(remove(list.begin(),list.end(),0),list.end()); // 删除所有 0 
+```
 
 #### remove_if
+
+位于头文件 `<algorithm>`内。
+
+与`remove`行为相同，唯一不同的是其移除的是符合条件的元素（由第三个参数决定）
+
+其函数声明如下
+
+```c++
+template< class ForwardIt, class UnaryPredicate >
+ForwardIt remove_if( ForwardIt first, ForwardIt last, UnaryPredicate p );
+//从范围 [first, last) 移除所有满足特定判别标准的元素，并返回新值范围的尾后迭代器。
+```
+
+p是一元谓词，可以是函数对象，返回bool类型的函数名（即函数指针），lambda 表达式。其一般结合匿名函数使用。函数形参需要与容器存储的元素类型一致（或者是其引用）。
+
+```c++
+ vector<int> a;
+// ... 对a操作
+a.erase(remove_if(a.begin(), a.end(), [](int& i){return i>9;}));
+```
+
+> 需要注意，匿名函数内如果对容器进行操作（比如中途改变容器内元素的值或是顺序），是无效的。原因未知
+
+
+
+
 
 
 
