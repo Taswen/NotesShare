@@ -665,12 +665,110 @@ git submodule add <仓库地址>
 > 	path = DbConnector
 > 	url = https://github.com/chaconinc/DbConnector
 > ```
+>
+> 一个项目只有一个`.gitmodules`文件，多个子模块的配置信息都在其中。其放在项目根目录下，也受版本控制。
 
 
 
-#### 更新子模块
+子模块所在目录是工作目录中的一个子目录，但 Git 还是会将它视作一个子模块。当不在那个目录中时，Git 并不会跟踪它的内容， 而是将它看作子模块仓库中的某个具体的提交。
 
 
+
+### 拉取子模块
+
+克隆一个含有子模块的项目时，默认会包含该子模块目录，但其中没有任何文件，
+
+必须运行两个命令：
+
+````bash
+git submodule init
+````
+
+用来初始化本地配置文件
+
+ ````bash
+ git submodule update
+ ````
+
+则从该项目中抓取所有数据并检出父项目中列出的合适的提交。
+
+如果想要在拉取时就初始化所有子模块，就要给 `git clone` 命令传递 `--recurse-submodules` 选项，它就会自动初始化并更新仓库中的每一个子模块， 包括可能存在的嵌套子模块。
+
+如果已经克隆了项目但忘记了 `--recurse-submodules`，那么可以运行
+
+```bash
+git submodule update --init
+```
+
+将 `git submodule init` 和 `git submodule update` 合并成一步。
+
+如果还要初始化、抓取并检出任何嵌套的子模块， 请使用简明的
+
+```bash
+git submodule update --init --recursive
+```
+
+### 查看子模块变化
+
+`git diff`默认只会查看项目代码的变化，如果想查看项目内子模块与上一个版本有什么不同，可是使用 `--submodle`参数
+
+```bash
+git diff --submodule
+```
+
+> 不想每次运行 `git diff` 时都输入 `--submodle`，那么可以将 `diff.submodule` 设置为 “log” 来将其作为默认行为。
+>
+> ```bash
+> git config --global diff.submodule log
+> ```
+>
+> 
+
+
+
+### 更新子模块
+
+想要简单更新子模块到其版本最新，可以进入到子模块的目录中运行 `git fetch` 与 `git merge`，合并上游分支来更新本地代码。
+
+> 子模块被更新的后，项目会得到一个包含新添加提交的列表。
+
+如果不想手动地进入子目录中抓取与合并，可以运行
+
+```bash
+git submodule update --remote
+```
+
+Git 将会进入子模块然后抓取并更新。默认情况下会同时检出子模块仓库的 `master` 分支。默认会尝试更新 **所有** 子模块， 所以如果有很多子模块的话，你可以传递想要更新的子模块的名字。
+
+如果想要跟踪其他分支则可以在 `.gitmodules` 文件中设置 （这样其他人也可以跟踪它）
+
+```bash
+git config -f .gitmodules submodule.DbConnector.branch stable
+```
+
+> 如果不用 `-f .gitmodules` 选项，那么它只会为你自己做修改。但是在仓库中保留跟踪信息更有意义一些，因为其他人也可以得到同样的效果。
+>
+> 然后`git submodule update --remote` 更新
+>
+> 也可以只在本地的 `.git/config` 文件中设置。
+
+
+
+
+
+> 默认情况下，`git pull` 命令会递归地抓取子模块的更改。 然而，它不会更新子模块。相当于，对于子模块只`fetch`但不检出，
+
+
+
+
+
+### 更改子模块地址
+
+需要变更某个子模块的关联git地址，可以直接更改配置文件，也可以使用诸如以下命令：
+
+```bash
+git config submodule.DbConnector.url <URL> 
+```
 
 
 
