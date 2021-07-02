@@ -1,3 +1,7 @@
+>  资料来源于网上
+>
+> C++ 主要来源：崔sir的Mooc网课
+
 # C
 
 ## 预处理与编译
@@ -86,11 +90,15 @@ C提供了 一种灵活的标准，它确保了最小长度
 - long 至少 32 位 ，且至少与 int 一样长；
 - long long 至少 64 位，且至少与 long 一样长 。
 
+通常，int 被设置为对目标计算机而言最为“ 自然” 的长度。自然长度(natural size) 指的是计算机处理起来效率最高的长度。如果没有非常有说服力 的理由来选择其他类型，则应使用 int 。
+
 当前很多系统都使用最小长度，即 short 为 16 位 ，long 为 32 位 。
 
 16 位的 int 的取值范围为 -32768 到 +32767 。
 
-通常，int 被设置为对目标计算机而言最为“ 自然” 的长度。自然长度(natural size) 指的是计算机处理起来效率最高的长度。如果没有非常有说服力 的理由来选择其他类型，则应使用 int 。
+一般来说，在32位机器和64机器中int类型都占用4个字节（32位），其中1位标识符号，31位标识大小。
+
+
 
 **整型字面值/常量**
 
@@ -158,7 +166,8 @@ sizeof a;
 在头文件`limits.h` 包含了关于整型限制的信息。具体地说，它定义了表示各种限制的符号名称。
 
 ```c
-INT_MAX;	// int的最大取值，
+INT_MAX;	// int的最大取值，在32位表示int的机子上其为 0x7fffffff
+
 CHAR_BIT;	// 为字节的位数
 ```
 
@@ -475,6 +484,14 @@ stct1.name;
 
 
 #### 函数类型
+
+
+
+
+
+
+
+
 
 
 
@@ -1302,15 +1319,66 @@ using namespace ns2;	// 上面两个命名空间都有 int a ，则编译时会�
 
 ## 关键字
 
-| **`if`**   | **`else`**       | **`while`**        | **`signed`**   | **`throw`**    | **`union`**    | **`this`**      |
-| ---------- | ---------------- | ------------------ | -------------- | -------------- | -------------- | --------------- |
-| **`int`**  | **`char`**       | **`double`**       | **`unsigned`** | **`const`**    | **`goto`**     | **`virtual`**   |
-| **`for`**  | **`float`**      | **`break`**        | **`auto`**     | **`class`**    | **`operator`** | **`case`**      |
-| **`do`**   | **`long`**       | **`typedef`**      | **`static`**   | **`friend`**   | **`template`** | **`default`**   |
-| **`new`**  | **`void`**       | **`register`**     | **`extern`**   | **`return`**   | **`enum`**     | **`inline`**    |
-| **`try`**  | **`short`**      | **`continue`**     | **`sizeof`**   | **`switch`**   | **`private`**  | **`protected`** |
-| **`asm`**  | **`while`**      | **`catch`**        | **`delete`**   | **`public`**   | **`volatile`** | **`struct`**    |
-| **`bool`** | **`const_cast`** | **`dynamic_cast`** | **`mutable`**  | **`decltype`** |                |                 |
+又称为保留字
+
+如下表所示（C++17）
+
+| **`alignas`**(11) | **`catch`**    | **`continue`** | **`extern`** | **`namespace`** | **`public`** | **`switch `** | **`unsigned`** |
+| ------------- | -------------- | ------------------ | -------------- | --------------- | --------------- | -------------- | -------------- |
+| **`alignof`**(11) | **`char`**     | **`decltype`**(11) | **`false`** | **`new`** | **`register`**         | **`template`** | **`using`** |
+| **`and`**     | **`char16_t`** | **`default`** | **`float`**   | **`noexcept`** | **`reinterpret_cast`** | **`this`** | **`virtual`** |
+| **`and_eq`**  | **`char32_t`** | **`delete`** | **`for`** | **`not`** | **`return`** | **`thread_local`**(11) | **`void`** |
+| **`asm`**     | **`class`**    | **`do`** | **`friend`**  | **`not_eq`** | **`short`** | **`throw`**    | **`volatile`** |
+| **`auto`**    | **`compl`**    | **`double`** | **`goto`**    | **`nullptr`** | **`signed`** | **`true`** | **`wchar_t`** |
+| **`bitand`**  | **`const`**    |**`dynamic_cast`**           | **`if`** | **`operator`** | **`sizeof`** | **`try`** | **`while`** |
+| **`bitor`**   | **`constexpr`**(11) | **`else`** | **`inline`** | **`or`** | **`static`** | **`typedef`** | **`xor`** |
+| **`bool`**    | **`const_cast`** | **`enum`** | **`int`** | **`or_eq`** | **`static_assert`** | **`typeid`** | **`xor_eq`** |
+| **`break`**    |      | **`explicit`** | **`long`** | **`private`** | **`static_cast`** | **`typename`** |  |
+| **`case`**     |    | **`export`** | **`mutable`** | **`protected`** | **`struct`** | **`union`** |  |
+
+> C++大小写敏感，所以所有的关键字必须是小写
+
+
+
+### alignas
+
+alignas关键字是**对齐描述符**，用来设置内存中对齐方式，最小是8字节对齐，可以是16，32，64，128等。
+
+```c++
+struct alignas(16)
+{
+	char c;
+	int  i;
+	double d;
+} struct_Test1;
+struct_Test1 test1;
+```
+
+
+
+### alignof
+
+alignof关键字是**操作符**，将类型作为参数，并返回一个整数，指出要求的对齐方式。
+
+```c++
+cout<<"char alignment:"<<alignof(char)<<endl;
+// char alignment:1
+// 结构长度将是8的整数倍
+```
+
+
+
+### and
+
+> and不是关键字，仅仅是保留替代标记
+
+and是为了那些欧、非、拉非英语国家的没有&键的键盘，保留的标记。c++里，与`&&` 完全等价。C则没有and运算符。
+
+
+
+### and_eq
+
+表示相与并赋值，等价于 `&=` 操作符
 
 
 
@@ -1320,9 +1388,91 @@ asm (指令字符串)：允许在 C++ 程序中嵌入汇编代码。
 
 
 
+在VC中
+
+```c++
+// 简单的 __asm 块
+__asm
+{
+    MOV AL, 2
+        MOV DX, 0xD007
+        OUT AL, DX
+}
+//或是 在每条汇编指令之前加 __asm 关键字
+__asm MOV AL, 2
+__asm MOV DX, 0xD007
+__asm OUT AL, DX
+// __asm 关键字是语句分隔符，所以可以把多条汇编指令放在同一行
+__asm MOV AL, 2 __asm MOV DX, 0XD007 __asm OUT AL, DX
+```
+
+`__asm` 块的“{}”不会影响 C/C++ 变量的作用范。`__asm` 块可以嵌套，而且嵌套也不会影响变量的作用范围。
+
+为了与低版本的 Visual C++ 兼容，`_asm` 和 `__asm` 具有相同的意义。另外，Visual C++ 支持标准 C++ 的 `asm` 关键字，但是它不会生成任何指令，它的作用仅限于使编译器不会出现编译错误。要使用内联汇编，必须使用 `__asm` 而不是 `asm` 关键字。
+
+
+
 ### auto
 
 auto（自动，automatic）是存储类型标识符，表明变量"自动"具有本地范围，块范围的变量声明（如for循环体内的变量声明）默认为auto存储类型。
+
+
+
+使用auto标识的变量会由编译器自动推导其具体类型，auto的自动类型推断发生在编译期，所以使用auto并不会造成程序运行时效率的降低。同时这也意味着auto的使用有如下限制：
+
+- auto声明的变量必须要初始化，否则编译器不能判断变量的类型。所以auto不能作为形参，不能被修饰为模板参数。
+
+- auto不允许直接推导返回类型。如果要用auto返回类型,需要用decltype 声明尾返回类型 
+
+- 一条声明语句只能有一个基本数据类型，所以语句中所有变量的初始值基本类型数据都必须一样。
+
+    ```c++
+    auto i = 0,*p = &i;	//正确：i是整数、p是整形指针
+    auto sz = 0,pi = 3.14;	//错误：sz和pi的类型不一致
+    ```
+
+    
+
+使用`auto`标明一个变量，这个变量永远不会是引用变量。
+
+使用`auto&`标明一个变量，这个变量有可能被编译器推导为引用变量。 
+
+
+
+
+
+
+
+
+
+#### 结构化绑定
+
+structured binding，C++17推出的用于一次声明中同时引入多个变量，同时绑定初始化表达式的各个子对象的语法形式。
+
+使用`auto`关键字声明多个变量，这些变量都必须用中括号括起来。形式如下
+
+```c++
+#include <tuple>
+std::tuple<int, std::string> getZeroPoint(){
+    return std::make_tuple(0, 0);
+}
+
+auto [x,y] = getZeroPoint();
+```
+
+
+
+
+
+结构化绑定所声明的变量有两种形式：
+
+- 非引用变量
+
+    此时初始化表达式对象需要拷贝一份，变量所绑定的是初始化表达式对象拷贝的各个子对象。
+
+- 引用变量 
+
+    此时初始化表达式对象不需要拷贝，变量所绑定的是初始化表达式对象本身的各个子对象。
 
 
 
@@ -1362,6 +1512,16 @@ class（类）是 C++ 面向对象设计的基础。使用 class 关键字声明
 
 
 
+
+
+### compl
+
+用作 `~` 的替代写法
+
+
+
+
+
 ### const
 
 const（常量的，constant）所修饰的对象或变量不能被改变，修饰函数时，该函数不能改变在该函数外面声明的变量也不能调用任何非const函数。在函数的声明与定义时都要加上const，放在函数参数列表的最后一个括号后。在 C++ 中，用 const 声明一个变量，意味着该变量就是一个带类型的常量，可以代替 #define，且比 #define 多一个类型信息，且它执行内链接，可放在头文件中声明；但在 C 中，其声明则必须放在源文件（即 .C 文件）中，在 C 中 const 声明一个变量，除了不能改变其值外，它仍是一具变量。如:
@@ -1371,6 +1531,29 @@ const double pi(3.14159);
 或 
 const double pi = 3.14159;
 ```
+
+
+
+
+
+### constexpr
+
+constexpr表达式是指值不会改变并且在编译过程就能得到计算结果的表达式。声明为constexpr的变量一定是一个const变量，而且必须用常量表达式初始化。
+
+```C++
+constexpr int mf = 20;  //20是常量表达式
+constexpr int limit = mf + 1; // mf + 1是常量表达式
+constexpr int sz = size(); //之后当size是一个constexpr函数时才是一条正确的声明语句
+```
+
+在constexpr声明中如果定义了一个指针，限定符conxtexpr仅对指针有效，与指针所指的对象无关。
+
+```C++
+const int*p = nullptr;        //p是一个指向整形常量的指针
+constexpr int* q = nullptr;   //q是一个指向整数的常量指针
+```
+
+
 
 
 
@@ -1389,6 +1572,104 @@ const_cast<type_id> (expression)
 ### continue
 
 continue（继续）关键字用于循环结构。它使程序跳过代码段后部的部分，与 break 不同的是，continue 不是进入代码段后的部分执行，而是重新开始新的循环。因而它是"继续循环"之意，不是 break（跳出）。
+
+
+
+### decltype
+
+从表达式的类型推断出要定义的变量类型，但是不想用该表达式的值初始化变量
+
+其选择并返回操作数的数据类型，在此过程中，编译器分析表达式并得到它的类型，却不实际计算表达式的值。
+
+```C++
+int getSize();
+
+int main(void)
+{
+    int tempA = 2;
+    
+    /*1.dclTempA为int*/
+    decltype(tempA) dclTempA;
+    /*2.dclTempB为int，对于getSize根本没有定义，但是程序依旧正常，因为decltype只做分析，并不调用getSize，*/
+    decltype(getSize()) dclTempB;
+
+    return 0;
+}
+```
+
+与const结合
+
+```C++
+
+double tempA = 3.0;
+const double ctempA = 5.0;
+const double ctempB = 6.0;
+const double *const cptrTempA = &ctempA;
+
+/*1.dclTempA推断为const double（保留顶层const，此处与auto不同）*/
+decltype(ctempA) dclTempA = 4.1;
+/*2.dclTempA为const double，不能对其赋值，编译不过*/
+dclTempA = 5;
+/*3.dclTempB推断为const double * const*/
+decltype(cptrTempA) dclTempB = &ctempA;
+/*4.输出为4（32位计算机）和5*/
+cout<<sizeof(dclTempB)<<"    "<<*dclTempB<<endl;
+/*5.保留顶层const，不能修改指针指向的对象，编译不过*/
+dclTempB = &ctempB;
+/*6.保留底层const，不能修改指针指向的对象的值，编译不过*/
+*dclTempB = 7.0;
+```
+
+
+
+
+
+与引用结合
+
+```c++
+int tempA = 0, &refTempA = tempA;
+/*1.dclTempA为引用，绑定到tempA*/
+decltype(refTempA) dclTempA = tempA;
+/*2.dclTempB为引用，必须绑定到变量，编译不过*/
+decltype(refTempA) dclTempB = 0;
+/*3.dclTempC为引用，必须初始化，编译不过*/
+decltype(refTempA) dclTempC;
+/*4.双层括号表示引用，dclTempD为引用，绑定到tempA*/
+decltype((tempA)) dclTempD = tempA;
+
+const int ctempA = 1, &crefTempA = ctempA;
+
+/*5.dclTempE为常量引用，可以绑定到普通变量tempA*/
+decltype(crefTempA) dclTempE = tempA;
+/*6.dclTempF为常量引用，可以绑定到常量ctempA*/
+decltype(crefTempA) dclTempF = ctempA;
+/*7.dclTempG为常量引用，绑定到一个临时变量*/
+decltype(crefTempA) dclTempG = 0;
+/*8.dclTempH为常量引用，必须初始化，编译不过*/
+decltype(crefTempA) dclTempH;
+/*9.双层括号表示引用,dclTempI为常量引用，可以绑定到普通变量tempA*/
+decltype((ctempA))  dclTempI = ctempA;
+```
+
+与指针结合
+
+```c++
+int tempA = 2;
+int *ptrTempA = &tempA;
+/*1.常规使用dclTempA为一个int *的指针*/
+decltype(ptrTempA) dclTempA;
+/*2.需要特别注意，表达式内容为解引用操作，dclTempB为一个引用，引用必须初始化，故编译不过*/
+decltype(*ptrTempA) dclTempB;
+```
+
+
+
+> decltype和auto都可以用来推断类型，但是二者有几处明显的差异：
+>
+> 1. auto忽略顶层const，decltype保留顶层const；\
+> 2. 对引用操作，auto推断出原有类型，decltype推断出引用；
+> 3. 对解引用操作，auto推断出原有类型，decltype推断出引用；
+> 4. auto推断时会实际执行，decltype不会执行，只做分析。
 
 
 
@@ -1570,6 +1851,116 @@ int function(){
 
 ### decltype
 
+自动类型推导
+
+
+
+
+
+### 类型
+
+typeid作为C++的操作符（不是函数，这点与sizeof类似）可以用来在运行时获知变量类型名称。
+
+```c++
+ typeid(变量).name()
+```
+
+
+
+
+
+
+
+## 左值右值
+
+`C++`中所有的值都必然属于左值、右值二者之一。
+
+- 左值
+
+    表达式结束后依然存在的持久化对象，所有的具名变量或者对象都是左值。
+
+- 右值
+
+    表达式结束时就不再存在的临时对象，以及一些字面量、常量。
+
+**对表达式取地址，如果能，则为左值，否则为右值**。
+
+
+
+### 左值
+
+
+
+#### 左值引用
+
+`c++98`中的引用很常见了，就是给变量取了个别名，在`c++11`中，因为增加了**右值引用(rvalue reference)**的概念，所以`c++98`中的引用都称为了**左值引用(lvalue reference)**。
+
+声明左值引用使用的符号为`&`：
+
+```c++
+int a = 10; 
+int& refA = a; // refA是变量a的别名， 修改refA就是修改a, a是左值，左移是左值引用
+
+int& b = 1; //编译错误! 1是右值，不能够使用左值引用
+```
+
+
+
+### 右值
+
+右值细分的话，可以分为**将亡值**和**纯右值**。
+
+- 纯右值
+
+    `c++98`标准中右值的概念，如非引用返回的函数返回的临时变量值；一些运算表达式，如1+2产生的临时变量；不跟对象关联的字面量值，如2，'c'，true，"hello"；这些值都不能够被取地址。
+
+- 将亡值
+
+    `c++11`新增的和右值引用相关的表达式，这样的表达式通常指将要移动的对象、`T&&`函数返回值、`std::move()`函数的返回值等。
+
+
+
+
+
+#### 右值引用
+
+右值引用是对右值的引用。
+
+c++11中的右值引用使用的符号是`&&`
+
+```c++
+int&& a = 1; //实质上就是将不具名(匿名)变量取了个别名
+int b = 1;
+int && c = b; //编译错误！ 不能将一个左值复制给一个右值引用
+class A {
+  public:
+    int a;
+};
+A getTemp()
+{
+    return A();
+}
+A && a = getTemp();   //getTemp()的返回值是右值（临时变量）
+```
+
+> `getTemp()`返回的右值本来在表达式语句结束后，其生命也就该终结了（因为是临时变量），而通过右值引用，该右值又重获新生，其生命期将与右值引用类型变量`a`的生命期一样，只要`a`还活着，该右值临时变量将会一直存活下去。实际上就是给那个临时变量取了个名字。
+>
+> 这里`a`的**类型**是右值引用类型(`int &&`)，但是如果从左值和右值的角度区分它，它实际上是个**左值**。因为可以对它取地址，而且它还有名字，是一个已经命名的右值。
+
+
+
+左值引用只能绑定左值，右值引用只能绑定右值，如果绑定的不对，编译就会失败。
+
+但是，**常量左值引用**却是个奇葩，它可以算是一个“万能”的引用类型，它可以绑定非常量左值、常量左值、右值，而且在绑定右值的时候，常量左值引用还可以像右值引用一样将右值的生命期延长，缺点是，只能读不能改。
+
+
+
+## 完美转发
+
+
+
+
+
 
 
 
@@ -1620,6 +2011,14 @@ if(p1 && p1->empty())
 
 
 
+### unique_ptr类
+
+
+
+
+
+### weak_ptr类
+
 
 
 
@@ -1633,6 +2032,24 @@ if(p1 && p1->empty())
 ### 成员构成
 
 #### 构造函数
+
+
+
+
+
+##### 拷贝构造函数
+
+
+
+##### 移动构造函数
+
+
+
+
+
+
+
+
 
 #### 析构函数
 
@@ -1742,12 +2159,6 @@ class A{
 
 
 #### 接口(抽象类)
-
-
-
-
-
-### 内部类
 
 
 
@@ -1893,6 +2304,20 @@ func_ptr(4); //calls the lambda.
 
 
 
+## 仿函数
+
+使一个类的使用看上去像一个函数。其实现就是类中实现一个operator()，这个类就有了类似函数的行为，就是一个仿函数类了。
+
+
+
+
+
+
+
+
+
+
+
 ## 动态内存管理
 
 ### 空指针
@@ -1980,7 +2405,43 @@ delete [] p;
 
 
 
+## 常见C++错误
+
+### 语法错误（Syntax Error）
+
+违反了编程语言的语句形式或使用规则，一般**由编译器检查指出**。
+
+例如:遗漏标点符号、错用关键字、分支/循环语句结构缺失等。
+
+有时也称为“编译错误”。
+
+
+
+### 运行时错误（Runtime Error）
+
+程序运行时，遇到一个无法执行的操作，**一般编译器无法检查指出**。
+
+例如:执行整数除以0的操作、打开不存在的文件、内存不足、磁盘满等。
+
+
+
+### 逻辑错误（Logic Error）
+
+程序的运行结果与预期的正确结果不一致，**编译器无法检查指出**。
+
+如:将10个整数排序输出的结果是由小到大，但是预期结果是由大到小的。
+
+
+
+
+
+
+
+
+
 ## 异常处理
+
+C++的异常处理不是强制的。
 
 
 
@@ -1988,11 +2449,135 @@ delete [] p;
 
 ## 模板
 
+模板是泛型编程的基础，泛型编程即以一种独立于任何特定类型的方式编写代码。
 
+模板是创建泛型类或函数的蓝图或公式。库容器，比如迭代器和算法，都是泛型编程的例子，它们都使用了模板的概念。
+
+每个容器都有一个单一的定义，比如 向量，可以定义许多不同类型的向量，比如 `vector <int>`  或 `vector <string>`。
+
+可以使用模板来定义函数和类。
 
 ### C++标准模板
 
 
+
+#### 函数模板
+
+一般形式
+
+```C++
+template <typename type> 
+ret-type func-name(parameter list){
+   // 函数的主体
+}
+```
+
+> `type` 是函数所使用的数据类型的占位符名称，其可以在函数定义中使用，用来表示一个类型。
+
+例如
+
+```C++
+template <typename T>
+inline T const& Max (T const& a, T const& b) { 
+    return a < b ? b:a; 
+}
+
+```
+
+
+
+
+
+#### 类模板
+
+
+
+```c++
+template <class type> 
+class class-name {
+    
+}
+```
+
+可以使用一个逗号分隔的列表来定义多个泛型数据类型。
+
+```C++
+template <class T>
+class Stack { 
+    private: 
+    vector<T> elems;     // 元素 
+
+    public: 
+    void push(T const&);  // 入栈
+    void pop();               // 出栈
+    T top() const;            // 返回栈顶元素
+    bool empty() const{       // 如果为空则返回真。
+        return elems.empty(); 
+    } 
+};
+ 
+template <class T>
+void Stack<T>::push (T const& elem) 
+{ 
+    // 追加传入元素的副本
+    elems.push_back(elem);    
+} 
+ 
+template <class T>
+void Stack<T>::pop () 
+{ 
+    if (elems.empty()) { 
+        throw out_of_range("Stack<>::pop(): empty stack"); 
+    }
+    // 删除最后一个元素
+    elems.pop_back();         
+}
+
+template <class T>
+T Stack<T>::top () const 
+{ 
+    if (elems.empty()) { 
+        throw out_of_range("Stack<>::top(): empty stack"); 
+    }
+    // 返回最后一个元素的副本 
+    return elems.back();      
+}
+```
+
+
+
+> typename 和 class 
+>
+> class 用于定义类，在模板引入 c++ 后，最初定义模板的方法为
+>
+> ```C++
+> template <class T>
+> class C{
+>   ...  
+> };
+> ```
+>
+> class表明T是一个类型。而后来为了避免 class 在这两个地方的使用可能给人带来混淆，所以引入了 typename 这个关键字，作用同  class 一样表明后面的符号为一个类型。
+>
+> typename 还有另外一个作用：使用嵌套依赖类型(nested depended name)，如下所示：
+>
+> ```c++
+> class MyArray 
+> { 
+>     public：
+>     typedef int LengthType;
+> .....
+> };
+> 
+> template<class T>
+> void MyMethod( T myarr ) 
+> { 
+>     typedef typename T::LengthType LengthType; 
+>     LengthType length = myarr.GetLength; 
+> };
+> ```
+>
+> 此时typename 的作用就是告诉 c++ 编译器，typename 后面的字符串为一个类型名称，而不是成员函数或者成员变量，这个时候如果前面没有  typename，编译器没有任何办法知道 T::LengthType 是一个类型还是一个成员名称(静态数据成员或者静态函数)，所以编译不能够通过。
 
 
 
@@ -2143,34 +2728,6 @@ getline(cin,str);
 
 
 
-## C++标准库
-
-
-
-
-
-## 常见C++错误
-
-### 语法错误（Syntax Error）
-
-违反了编程语言的语句形式或使用规则，一般**由编译器检查指出**。
-
-例如:遗漏标点符号、错用关键字、分支/循环语句结构缺失等
-
-有时也称为“编译错误”
-
-### 运行时错误（Runtime Error）
-
-程序运行时，遇到一个无法执行的操作，**一般编译器无法检查指出**。
-
-例如:执行整数除以0的操作、打开不存在的文件、内存不足、磁盘满等
-
-### 逻辑错误（Logic Error）
-
-程序的运行结果与预期的正确结果不一致，**编译器无法检查指出**。
-
-如:将10个整数排序输出的结果是由小到大，但是预期结果是由大到小的
-
 
 
 
@@ -2298,11 +2855,11 @@ a.resize(20, -1);				// 重新调整 a 的大小为 20，并存储 20 个 -1 元
 
 但是，或许是为了向下兼容，或许是为了内部组织规划，某些 STL 版本同时存储具备扩展名和无扩展名的两份文件（例如 Visual C++ 支持的 Dinkumware 版本同时具备 <vector.h> 和 `<vector>`）；甚至有些 STL 版本同时拥有 3 种形式的头文件（例如 SGI 版本同时拥有 `<vector>`、<vector.h> 和 <stl_vector.h>）；但也有个别的 STL 版本只存在包含扩展名的头文件（例如 C++ Builder 的 RaugeWare 版本只有 <vector.h>）。
 
-### C++ STL容器（container）
+#### C++ STL容器（container）
 
 数据结构的选择影响存取数据时进行增删改查操作的复杂程度和时间消耗。容器就是一些模板类的集合，封装的是组织数据的方法（也就是数据结构）
 
-#### 容器类别
+##### 容器类别
 
 STL 提供有 3 类标准容器，分别是**序列容器**、**排序容器**和**哈希容器**。其中后两类容器有时也统称为**关联容器**
 
@@ -2316,7 +2873,7 @@ STL 提供有 3 类标准容器，分别是**序列容器**、**排序容器**�
 
 
 
-### C++ STL迭代器（iterator）
+#### C++ STL迭代器（iterator）
 
 无论是序列容器还是关联容器，最常做的操作无疑是遍历容器中存储的元素，而实现此操作，多数情况会选用“迭代器（iterator）”来实现。
 
@@ -2328,7 +2885,7 @@ STL 提供有 3 类标准容器，分别是**序列容器**、**排序容器**�
 
 
 
-#### 迭代器类别
+##### 迭代器类别
 
 STL 标准库为每一种标准容器定义了一种迭代器类型，这意味着，不同容器的迭代器也不同，其功能强弱也有所不同。
 
@@ -2378,7 +2935,7 @@ STL 标准库为每一种标准容器定义了一种迭代器类型，这意味�
 
 > 容器stack 和 queue 没有迭代器，它们包含有一些成员函数，可以用来对元素进行访问。
 
-#### 迭代器的定义方式
+##### 迭代器的定义方式
 
 尽管不同容器对应着不同类别的迭代器，但这些迭代器有着较为统一的定义方式，具体分为 4 种
 
@@ -2393,7 +2950,7 @@ STL 标准库为每一种标准容器定义了一种迭代器类型，这意味�
 
 
 
-#### 迭代器的使用方式
+##### 迭代器的使用方式
 
 `*迭代器名`就表示迭代器指向的元素。
 
@@ -2410,7 +2967,7 @@ STL 标准库为每一种标准容器定义了一种迭代器类型，这意味�
 
 
 
-#### 示例
+##### 示例
 
 ```C++
 #include <iostream>	// 标准流输入输出文件
@@ -2448,9 +3005,121 @@ int main(){
 
 
 
+### STL标准数据结构
+
+> pair、tuple
+
+#### pair
+
+pair类型定义在`#include <utility>`头文件中
+
+`pair`是它主要用在将key和value放在一起来保存，或是函数返回2个数据的时候。
+
+pair的实现是一个结构体，主要的两个成员变量是first second 因为是使用struct不是class，所以可以直接使用pair的成员变量。
+
+
+
+两个`pair`互相比较时， 第一个元素正具有较高的优先级。
+
+`pair`类型包含两个数据值，与容器一样，`pair`也是一种模板类型。在创建`pair`对象时，必须提供两个类型名：`pair`对象所包含的两个数据成员各自对应的类型名字，这两个类型名字不必相同：
+
+```c++
+pair<string, string> strs;   // holds two string
+pair<string, vector<int>> line; // holds a string and a vector<int>
+```
+
+
+
+##### 初始化
+
+如果在创建`pair`对象时不提供初始化式，则调用默认构造函数对其成员采用值初始化。当然，也可以定义时提供初始化式：
+
+```c++
+pair<string, string> author("James", "Joyce");
+```
+
+支持列表初始化
+
+```c++
+pair<string, string> my_pair{"s1", s2};
+```
+
+
+
+
+
+##### 运算
+
+###### 比较
+
+两个`pair`对象之间的比较运算，其定义遵循字典顺序：
+
+```c++
+p1 < p2
+```
+
+上述小于比较，如果`p1.first < p2.first`或者`p2.first == p1.first && p1.second < p2.second`，则返回`true`
+
+```c++
+p1 == p2
+```
+
+上述判等比较，如果两个`pair`对象的`first`和`second`成员依次相等，则两个对象相等，返回`true`
+
+
+
+##### make_pair()
+
+`make_pair<T1，T2>` 函数模板是一个辅助函数，可以生成并返回一个 `pair<T1，T2>` 对象。在使用时不必指定`T1`和`T2` ，函数模板的类型参数由编译器推断。:
+
+```c++
+auto my_pair = make_pair(string {"test"},string {"that"});
+```
+
+当然，有些情况下为了自动推导出错需要明确指定参数类型：
+
+```c++
+auto her_pair = make_pair<string, string>("test", "that");
+// 如果不加显示的string类型强制转换，"test"会被自动推导为const char*类型
+make_pair(1, 1.1);
+// 如果不指定，1.1这类的小数将会被匹配为 double 类型
+```
+
+
+
+
+
+#### tuple
+
+`tuple` ，元组，可以用来将多个不同类型的元素存放在一起，常用于函数的多返回值。
+
+
+
+##### 定义
+
+
+
+
+
+##### 初始化
+
+可以使用初始化列表进行赋值。
+
+```c++
+tuple<int,double,string> t3 = {1, 2.0, "3"};
+```
+
+
+
+
+
+
+
+
+
 ### STL序列式容器
 
-> array、vector、deque、list、forward_list 
+> array、vector、queue、priority_queue、deque、list、forward_list、string
 
 所谓STL序列式容器，其共同的特点是不会对存储的元素进行排序，元素以线性排列（类似普通数组的存储方式）。
 
@@ -2795,7 +3464,62 @@ vector占用的内存实际上是由vector实例管理的。其之所以没有�
 
 
 
+#### priority_queue
 
+优先级队列
+
+包含在头文件`#include <queue>` 中
+
+它不但提供队列式存取数据的方式，还会自动把入队的数据按照优先级排序，让优先级高的排在队列前面，优先出队。
+
+缺省情况下，优先级队列利用一个大顶堆完成。
+
+
+
+##### 定义
+
+```c++
+priority_queue<Type, Container, Functional>
+```
+
+Type 就是数据类型。
+
+Container 就是容器类型（Container必须是用数组实现的容器，比如vector,deque等等，但不能用 list。STL里面默认用的是vector）。
+
+Functional 是比较的方式。默认使用 `operator <` 即优先队列是大顶堆. 队头元素最大.
+
+当需要用自定义的数据类型时才需要传入这三个参数使用基本数据类型时，只需要传入数据类型，默认是大顶堆。
+
+第三个参数可以传入仿函数 `less<int>` （即 `<`）或是 `greater<int>`（即 `>`）。
+
+
+
+
+
+##### 声明
+
+由于分为基本数据类型和自定义数据类型，所以使用的声明方式有两种。
+
+对于基本类型，只需如下
+
+```c++
+priority_queue<int> pq;
+```
+
+对于自定义类型，有两种方法：
+
+```c++
+// 方法一：重载比较方法
+typedef struct t1{
+    int x;
+    bool operator<(const t1& a) const{return x < a.x;}
+}t1; 
+
+priority_queue<t1> pq1;
+
+// 方法二：指定比较方法
+
+```
 
 
 
@@ -2807,7 +3531,19 @@ vector占用的内存实际上是由vector实例管理的。其之所以没有�
 
 #### deque
 
+队列
+
+
+
+
+
 ####  list
+
+
+
+
+
+
 
 ####  forward_list
 
@@ -2817,58 +3553,207 @@ vector占用的内存实际上是由vector实例管理的。其之所以没有�
 
 
 
-### 标准函数
+#### 标准函数
 
-#### remove
+##### remove
 
-位于头文件 `<algorithm>`内。
 
-会将所有符合值的成员移动到容器后面（注意，并没有真正删除），并返回这些值的第一个迭代器（也就是移动后剩余值列表的`end()`）。
 
-其函数原型如下
+##### remove_if
 
-```c++
-template< class ForwardIt, class T >
-ForwardIt remove( ForwardIt first, ForwardIt last, const T& value );//first,last都是迭代器，value是值或对象，返回新值范围的尾后迭代器
-```
 
-则可以较为方便地删除容器内某一特点值的所有元素。操作如下
 
-```c++
-vector<int> list;
-// ... 对list操作
-list.erase(remove(list.begin(),list.end(),0),list.end()); // 删除所有 0 
-```
 
-#### remove_if
 
-位于头文件 `<algorithm>`内。
+### STL排序容器
 
-与`remove`行为相同，唯一不同的是其移除的是符合条件的元素（由第三个参数决定）
+> map、set、multimap、multiset
 
-其函数声明如下
+#### map
 
-```c++
-template< class ForwardIt, class UnaryPredicate >
-ForwardIt remove_if( ForwardIt first, ForwardIt last, UnaryPredicate p );
-//从范围 [first, last) 移除所有满足特定判别标准的元素，并返回新值范围的尾后迭代器。
-```
+map是STL的一个关联容器，它提供一对一的hash。
 
-p是一元谓词，可以是函数对象，返回bool类型的函数名（即函数指针），lambda 表达式。其一般结合匿名函数使用。函数形参需要与容器存储的元素类型一致（或者是其引用）。
+map以模板(泛型)方式实现，可以存储任意类型的数据，包括使用者自定义的数据类型。
+
+Map主要用于资料一对一映射(one-to-one)的情況，map內部的实现自建一颗红黑树，这颗树具有对数据自动排序的功能。**在map内部所有的数据都是有序的**。
+
+
+
+
+
+##### 定义
+
+map所在头文件如下
 
 ```c++
- vector<int> a;
-// ... 对a操作
-a.erase(remove_if(a.begin(), a.end(), [](int& i){return i>9;}));
+#include <map>
 ```
 
-> 需要注意，匿名函数内如果对容器进行操作（比如中途改变容器内元素的值或是顺序），是无效的。原因未知
+
+
+##### 声明
+
+
+
+```c++
+std:map<int, string> personnel;
+```
+
+
+
+
+
+##### 初始化
+
+可以使用列表初始化
+
+```c++
+map<string,int> m3 = {
+    {"string",1}, {"sec",2}, {"trd",3}
+};
+
+map<string,string> m4 = {
+    {"first","second"}, {"third","fourth"},
+    {"fifth","sixth"}, {"begin","end"}
+
+}
+```
+
+对于重复的键，会取第一个出现的，抛弃之后出现的。
+
+
+
+#### set
 
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+### STL哈希容器
+
+> unordered_map、unordered_set、unordered_multimap、unordered_multiset
+
+
+
+哈希容器在保证了容器中元素唯一的同时不会对元素排序，而是通过哈希保证元素的唯一性。
+
+
+
+
+
+> 哈希容器插入元素的顺序不一定和实际存储的顺序相同，需要针对不同类型的容器分别看待。
+
+
+
+
+
+
+
+#### unordered_map
+
+
+
+unordered_map为无序的，其底层为哈希表。
+
+
+
+
+
+#### unordered_set
+
+头文件定义在`#include <unordered_set>`中
+
+其具有以下几个特性：
+
+- 不再以键值对的形式存储数据，而是直接存储数据的值；
+- 容器内部存储的各个元素的值都互不相等，且不能被修改。
+
+##### 定义
+
+其模板定义如下
+
+```c++
+template <class Key,            //容器中存储元素的类型
+	class Hash = hash<Key>,    //确定元素存储位置所用的哈希函数
+	class Pred = equal_to<Key>,   //判断各个元素是否相等所用的函数
+	class Alloc = allocator<Key>   //指定分配器对象的类型
+    > class unordered_set;
+```
+
+只有第一个参数没有默认值，即创建一个 unordered_set 容器，至少需要手动传递 1 个参数。
+
+| 参数                   | 含义                                                         |
+| ---------------------- | ------------------------------------------------------------ |
+| `Key`                  | 确定容器存储元素的类型，如果读者将 unordered_set 看做是存储键和值相同的键值对的容器，则此参数则用于确定各个键值对的键和值的类型，因为它们是完全相同的，因此一定是同一数据类型的数据。 |
+| `Hash = hash<Key>`     | 指定 unordered_set 容器底层存储各个元素时，所使用的哈希函数。需要注意的是，默认哈希函数 hash<Key> 只适用于基本数据类型（包括 string 类型），而不适用于自定义的结构体或者类。 |
+| `Pred = equal_to<Key>` | unordered_set 容器内部不能存储相等的元素，而衡量 2 个元素是否相等的标准，取决于该参数指定的函数。 默认情况下，使用 STL 标准库中提供的 equal_to<key> 规则，该规则仅支持可直接用 == 运算符做比较的数据类型。 |
+
+如果 `unordered_set` 容器中存储的元素为自定义的数据类型，则默认的哈希函数 `hash<key> `以及比较函数 `equal_to<key> `将不再适用，只能自己设计适用该类型的哈希函数和比较函数，并显式传递给` Hash` 参数和 `Pred` 参数。
+
+
+
+##### 声明
+
+```c++
+unordered_set<string> uset;
+```
+
+
+
+
+
+
+
+#### unordered_multimap
+
+用哈希函数组织的map，关键字可以重复出现；
+
+
+
+#### unordered_multiset
+
+用哈希函数组织的set，关键字可以重复出现。
+
+
+
+
+
+
+
+
+
+#### hashmap
+
+`hash_map`是一个聚合类，它继承自`_Hash`类，包括一个`vector`，一个`list`和一个`pair`，其中`vector`用于保存桶，`list`用于进行冲突处理，`pair`用于保存key->value结构，简要地伪码如下：
+
+```c++
+class hash_map<class _Tkey, class _Tval>  {  
+    private:  
+    typedef pair<_Tkey, _Tval> hash_pair;  
+    typedef list<hash_pair>    hash_list;  
+    typedef vector<hash_list>  hash_table;  
+};  
+```
+
+
+
+
+
+头文件
+
+```c++
+#include <hash_map>
+```
 
 
 
