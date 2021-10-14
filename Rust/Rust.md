@@ -103,11 +103,13 @@ rustup doc
 
 
 
-
-
-# Cargo
+# 包与项目管理
 
 官方安装包自带了 Cargo，Cargo 是 Rust 的构建系统和包管理器。
+
+Rust把代码所需要的库叫做 依赖（dependencies）。
+
+而在 Rust 中，代码包被称为 *crates*。
 
 ## Cargo使用
 
@@ -123,11 +125,11 @@ Cargo 新建了名为指定名的目录，并在其下生成了两个文件和�
 
 - Cargo.toml 文件
 
-  使用 [*TOML*](https://github.com/toml-lang/toml) (*Tom's Obvious, Minimal Language*) 格式，是 Cargo 配置文件。
+    使用 [*TOML*](https://github.com/toml-lang/toml) (*Tom's Obvious, Minimal Language*) 格式，是 Cargo 配置文件。
 
 - src 目录
 
-  - main.rs 文件
+    - main.rs 文件
 
 同时Cargo也在项目目录下初始化了一个 git 仓库，以及一个 .gitignore 文件。
 
@@ -135,21 +137,21 @@ Cargo 新建了名为指定名的目录，并在其下生成了两个文件和�
 
 >  [*TOML*](https://github.com/toml-lang/toml) (*Tom's Obvious, Minimal Language*) 格式
 >
->  - 片段（section）
+> - 片段（section）
 >
->    标识其下的语句是用来配置什么的。
+>     标识其下的语句是用来配置什么的。
 >
->    - [package]
+>     - [package]
 >
->      配置包
+>         配置包
 >
->    - [dependencies]
+>     - [dependencies]
 >
->      罗列项目依赖的片段
+>         罗列项目依赖的片段
 >
->  - 语句（segment）
+> - 语句（segment）
 >
->  
+>     
 
 
 
@@ -219,439 +221,21 @@ cargo update
 
 
 
+# 库与模块
 
 
-# 包、库与模块
 
-Rust 有许多功能可以让你管理代码的组织，包括哪些内容可以被公开，哪些内容作为私有部分，以及程序每个作用域中的名字。这些功能。这有时被称为 “模块系统（the module system）
 
-- **包**（*Packages*）： Cargo 的一个功能，它允许你构建、测试和分享 crate。
-- **Crates** ：一个模块的树形结构，它形成了库或二进制项目。
-- **模块**（*Modules*）和 **use**： 允许你控制作用域和路径的私有性。
-- **路径**（*path*）：一个命名例如结构体、函数或模块等项的方式
 
+## 导入库
 
-
-Rust把代码所需要的库叫做 依赖（dependencies）。
-
-
-
-## 包与crate
-
-在 Rust 中，代码包被称为 *crates*。crate 是一个二进制项或者库。
-
-*包*（*package*） 是提供一系列功能的一个或者多个 crate。一个包会包含有一个 *Cargo.toml* 文件，阐述如何去构建这些 crate。
-
-包中所包含的内容由几条规则来确立。
-
-- 一个包中至多 **只能** 包含一个库 crate(library crate)；
-- 包中可以包含任意多个二进制 crate(binary crate)；
-- 包中至少包含一个 crate，无论是库的还是二进制的。
-
-
-
-*crate root* 是一个源文件，Rust 编译器以它为起始点，并构成 crate 的根模块
-
-当输入命令 `cargo new` 时，Cargo 会给我们的包创建一个 *Cargo.toml* 文件，同时创建了 *src/main.rs* 源文件。 Cargo 遵循一个约定：*src/main.rs* 就是一个与包同名的二进制 crate 的 crate 根。同样的，如果包目录中包含 *src/lib.rs*，则包带有与其同名的库 crate，且 *src/lib.rs* 是 crate 根。crate 根文件将由 Cargo 传递给 `rustc` 来实际构建库或者二进制项目。
-
-如果一个包只包含 *src/main.rs* ，意味着它将只含有一个名为 `my-project` 的二进制 crate。如果一个包同时含有 *src/main.rs* 和 *src/lib.rs*，则它有两个 crate：一个库和一个二进制项，且名字都与包相同。通过将文件放在 *src/bin* 目录下，一个包可以拥有多个二进制 crate：每个 *src/bin* 下的文件都会被编译成一个独立的二进制 crate。
-
-一个 crate 会将一个作用域内的相关功能分组到一起，使得该功能可以很方便地在多个项目之间共享。如`rand` crate 提供了生成随机数的功能，通过将 `rand` crate 加入到我们项目的作用域中，我们就可以在自己的项目中使用该功能。`rand` crate 提供的所有功能都可以通过该 crate 的名字：`rand` 进行访问。
-
-
-
-
-
-## 模块
-
-*模块* 可以将一个 crate 中的代码进行分组，以提高可读性与重用性。模块还可以控制项的 *私有性*，即项是可以被外部代码使用的（*public*），还是作为一个内部实现的内容，不能被外部代码使用（*private*）。
-
-
-
-### 定义
-
-一个模块，是以 `mod` 关键字为起始，然后指定模块的名字，并且用花括号包围模块的主体。模块内可以保存一些定义的其他项，比如结构体、枚举、常量、特性、或者函数。
-
-```rust
-mod front_of_house{
-    mod hosting{
-        // 
-        fn add_to_waitlist(){}
-        // 
-        fn seat_at_table(){}
-    }
-    mod serving{
-        // 
-        fn take_order(){}
-        //
-        fn server_order(){}
-        //
-        fn take_payment(){}
-    }
-}
-```
-
-在模块内，我们还可以定义其他的模块
-
-通过使用模块，我们可以将相关的定义分组到一起，并指出他们为什么相关。
-
-```
-crate
- └── front_of_house
-     ├── hosting
-     │   ├── add_to_waitlist
-     │   └── seat_at_table
-     └── serving
-         ├── take_order
-         ├── serve_order
-         └── take_payment
-
-```
-
-`src/main.rs` 和 `src/lib.rs` 叫做 crate 根，是因为这两个文件的内容都分别在 crate 模块结构的根组成了一个名为 `crate` 的模块，该结构被称为 *模块树*（*module tree*）。
-
-在模块树中，把定义在同一模块中的一些模块称为互为 *兄弟*（*siblings*） ，而对于包含在模块 B 中的模块 A ，称模块 A 为模块 B 的 *子*（*child*），模块 B 则是模块 A 的 *父*（*parent*）。
-
-整个模块树都植根于名为 `crate` 的隐式模块下。
-
-### 可见性
-
-模块不仅对于组织代码很有用。它们还定义了 Rust 的 *私有性边界*（*privacy boundary*），这条界线不允许外部代码了解、调用和依赖被封装的实现细节。如果希望创建一个私有函数或结构体，你可以将其放入模块。
-
-Rust 中默认所有项（函数、方法、结构体、枚举、模块和常量）都是私有的。父模块中的项不能使用子模块中的私有项，但是子模块中的项可以使用他们父模块中的项。这是因为子模块封装并隐藏了他们的实现详情，但是子模块可以看到他们定义的上下文。
-
-
-
-可以通过使用 `pub` 关键字来创建公共项，使子模块的内部部分暴露给上级模块。
-
-```rust
-mod front_of_house {
-    pub mod hosting {
-        fn add_to_waitlist() {}
-    }
-}
-```
-
-需要注意的是，对于公开的子模块，也只能访问它的公开项。如，在 `mod hosting` 前添加了 `pub` 关键字，使其变成公有的。如果我们可以访问 `front_of_house`，那我们也可以访问 `hosting`。但是 `hosting` 的 *内容*（*contents*） 仍然是私有的；这表明使模块公有并不使其内容也是公有的。要想访问`hosting`模块中的`add_to_waitlist`，也需要为其加上 `pub` 关键字。
-
-
-
-对于定义在同一父模块中的兄弟模块相互之间是可见，即使没有用 `pub` 修饰。
-
-
-
-可以使用 `pub` 来设计公有的结构体和枚举。但要注意，如果在一个结构体定义的前面使用了 `pub` ，这个结构体会变成公有的，但是这个结构体的字段仍然是私有的。可以根据情况决定每个字段是否公有。
-
-```rust
-#![allow(unused)]
-fn main() {
-    mod back_of_house {
-        // 公开结构体
-        pub struct Breakfast {
-            pub toast: String,			// 公开字段
-            seasonal_fruit: String,		// 私有字段
-        }
-
-        impl Breakfast {
-            pub fn summer(toast: &str) -> Breakfast {
-                Breakfast {
-                    toast: String::from(toast),
-                    seasonal_fruit: String::from("peaches"), // 兄弟可见
-                }
-            }
-        }
-    }
-
-    pub fn eat_at_restaurant() {
-        // Order a breakfast in the summer with Rye toast
-        let mut meal = back_of_house::Breakfast::summer("Rye");
-        // Change our mind about what bread we'd like
-        meal.toast = String::from("Wheat");
-        println!("I'd like {} toast please", meal.toast);
-
-        // 下一行代码会造成编译错误。
-        // meal.seasonal_fruit = String::from("blueberries");
-    }
-}
-```
-
-不能在 `eat_at_restaurant` 中使用 `seasonal_fruit` 字段，因为 `seasonal_fruit` 是私有的。
-
-为 `back_of_house::Breakfast` 具有私有字段，所以这个结构体需要提供一个公共的关联函数来构造 `Breakfast` 的实例(这里我们命名为 `summer`)。如果 `Breakfast` 没有这样的函数，我们将无法在 `eat_at_restaurant` 中创建 `Breakfast` 实例，因为我们不能在 `eat_at_restaurant` 中设置私有字段 `seasonal_fruit` 的值。
-
-
-
-与结构体不同，如果将枚举设为公有，则它的所有成员都将变为公有。
-
-```rust
-#![allow(unused)]
-fn main() {
-    mod back_of_house {
-        pub enum Appetizer {
-            Soup,
-            Salad,
-        }
-    }
-
-    pub fn eat_at_restaurant() {
-        let order1 = back_of_house::Appetizer::Soup;
-        let order2 = back_of_house::Appetizer::Salad;
-    }
-}
-```
-
-
-
-
-
-### 模块分割
-
-当模块变得更大时，需要将它们的定义移动到单独的文件中，从而使代码更容易阅读。
-
-```rust
-// src/lib.rs
-mod front_of_house;
-
-pub use crate::front_of_house::hosting;
-
-pub fn eat_at_restaurant() {
-    hosting::add_to_waitlist();
-    hosting::add_to_waitlist();
-    hosting::add_to_waitlist();
-}
-```
-
-将 `front_of_house` 模块移动到属于它自己的文件 *src/front_of_house.rs* 中，通过改变 crate 根文件，使其导入 `front_of_house` 模块。在 `mod front_of_house` 后使用分号，而不是代码块，这将告诉 Rust 在另一个与模块同名的文件中加载模块的内容。
-
-*src/front_of_house.rs* 会获取 `front_of_house` 模块的定义内容。
-
-```rust
-//  src/front_of_house.rs
-pub mod hosting {
-    pub fn add_to_waitlist() {}
-}
-```
-
-进一步拆解，还可以将`hosting ` 放置在单独的文件中。
-
-把 *src/front_of_house.rs* 修改为
-
-```rust
-// src/front_of_house.rs
-pub mod hosting;
-```
-
-然后创建一个 *src/front_of_house* 目录和一个包含 `hosting` 模块定义的 *src/front_of_house/hosting.rs* 文件
-
-```rust
-// src/front_of_house/hosting.rs
-pub fn add_to_waitlist() {}
-```
-
-
-
-
-
-## 路径
-
-使用路径的方式，Rust 可以在模块树中找到一个项的位置。如果我们想要调用一个函数，我们需要知道它的路径。
-
-像在文件系统使用路径一样，路径有两种形式：
-
-- **绝对路径**（*absolute path*）从 crate 根开始，以 crate 名或者字面值 `crate` 开头。
-- **相对路径**（*relative path*）从当前模块开始，以 `self`、`super` 或当前模块的标识符开头。
-
-绝对路径和相对路径都后跟一个或多个由双冒号（`::`）分割的标识符。
-
-```rust
-mod front_of_house {
-    pub mod hosting {
-        pub fn add_to_waitlist() {}
-    }
-}
-
-pub fn eat_at_restaurant() {
-    // 绝对路径
-    crate::front_of_house::hosting::add_to_waitlist();
-
-    // 相对路径
-    front_of_house::hosting::add_to_waitlist();
-}
-
-```
-
-
-
-还可以使用 `super` 开头来构建从父模块开始的相对路径。这么做类似于文件系统中以 `..` 开头的语法。
-
-```rust
-fn serve_order() {}
-
-mod back_of_house {
-    fn fix_incorrect_order() {
-        cook_order();
-        super::serve_order();
-    }
-
-    fn cook_order() {}
-}
-```
-
-
-
-### 导入路径
-
-可以使用 `use` 关键字将路径一次性引入作用域，然后调用该路径中的项，就如同它们是本地项一样。
-
-```rust
-mod front_of_house {
-    pub mod hosting {
-        pub fn add_to_waitlist() {}
-    }
-}
-
-use crate::front_of_house::hosting;
-
-pub fn eat_at_restaurant() {
-    hosting::add_to_waitlist();
-    hosting::add_to_waitlist();
-    hosting::add_to_waitlist();
-}
-```
-
-
-
-将 `crate::front_of_house::hosting` 模块引入了 `eat_at_restaurant` 函数的作用域，只需要指定 `hosting::add_to_waitlist` 即可在 `eat_at_restaurant` 中调用 `add_to_waitlist` 函数。
-
-在作用域中增加 `use` 和路径类似于在文件系统中创建软连接（符号连接，symbolic link）。通过在 crate 根增加 `use crate::front_of_house::hosting`，现在 `hosting` 在作用域中就是有效的名称了，如同 `hosting` 模块被定义于 crate 根一样。通过 `use` 引入作用域的路径也会检查私有性，同其它路径一样。
-
-当然也可以使用 `use` 和相对路径来将一个项引入作用域。
-
-```rust
-mod front_of_house {
-    pub mod hosting {
-        pub fn add_to_waitlist() {}
-    }
-}
-
-use front_of_house::hosting;
-
-pub fn eat_at_restaurant() {
-    hosting::add_to_waitlist();
-    hosting::add_to_waitlist();
-    hosting::add_to_waitlist();
-}
-```
-
-
-
-使用`use`引入模块时，停止在父模块可以区分这两个不同模块内的同名类型。同时，Rust对于使用 `use` 将两个同名类型引入同一作用域这个问题还有另一个解决办法：在这个类型的路径后面，使用 `as` 指定一个新的本地名称或者别名。
-
-```rust
-#![allow(unused)]
-fn main() {
-    use std::fmt::Result;
-    use std::io::Result as IoResult;
-
-    fn function1() -> Result {
-        // --snip--
-        Ok(())
-    }
-
-    fn function2() -> IoResult<()> {
-        // --snip--
-        Ok(())
-    }
-}
-```
-
-
-
-### 重导出名称
-
-当使用 `use` 关键字将名称导入作用域时，在新作用域中可用的名称是私有的。如果为了让调用你编写的代码的代码能够像在自己的作用域内引用这些类型，可以结合 `pub` 和 `use`。这个技术被称为 “*重导出*（*re-exporting*）”，因为这样做将项引入作用域并同时使其可供其他代码引入自己的作用域。
-
-```rust
-mod front_of_house {
-    pub mod hosting {
-        pub fn add_to_waitlist() {}
-    }
-}
-
-pub use crate::front_of_house::hosting;
-
-pub fn eat_at_restaurant() {
-    hosting::add_to_waitlist();
-    hosting::add_to_waitlist();
-    hosting::add_to_waitlist();
-}
-```
-
-通过 `pub use`，外部代码现在可以通过新路径 `hosting::add_to_waitlist` 来调用 `add_to_waitlist` 函数。如果没有指定 `pub use`，`eat_at_restaurant` 函数可以在其作用域中调用 `hosting::add_to_waitlist`，但外部代码则不允许使用这个新路径。
-
-
-
-
-
-### 嵌套路径
-
-当需要引入很多定义于相同包或相同模块的项时，为每一项单独列出一行会占用源码很大的空间。使用嵌套路径将相同的项在一行中引入作用域。这么做需要指定路径的相同部分，接着是两个冒号，接着是大括号中的各自不同的路径部分。如，对于如下代码
-
-```rust
-use std::cmp::Ordering;
-use std::io;
-```
-
-可以简化为
-
-```rust
-use std::{cmp::Ordering, io};
-```
-
-
-
-可以在路径的任何层级使用嵌套路径，这在组合两个共享子路径的 `use` 语句时非常有用。
-
-```rust
-use std::io;
-use std::io::Write;
-```
-
-两个路径的相同部分是 `std::io`，这正是第一个路径。为了在一行 `use` 语句中引入这两个路径，可以在嵌套路径中使用 `self`
-
-```rust
-use std::io::{self, Write};
-```
-
-
-
-### 全部引入
-
-如果希望将一个路径下 **所有** 公有项引入作用域，可以指定路径后跟 `*`，glob 运算符：
-
-```rust
-use std::collections::*;
-```
-
-glob 运算符经常用于测试模块 `tests` 中，这时会将所有内容引入作用域；
-
-glob 运算符有时也用于 prelude 模式；
-
-
-
-
-
-### 使用外部包
-
-为了在项目中使用外部包，需要配置`Cargo.toml`文件，添加要依赖的包的名称和版本号。
+需要配置`Cargo.toml`文件，添加要依赖的包的名称和版本号。
 
 在运行时，将自动下载对应的库(源文件)以及一系列的依赖库。然后编译。
 
 > Cargo 从 *registry* 上获取所有包的最新版本信息，这是一份来自 [Crates.io](https://crates.io/) 的数据拷贝。
 >
-> Crates.io 是 Rust 生态环境中的开发者们向他人贡献 Rust 开源项目的地方，有很多 Rust 社区成员发布的包。
-
-
+> Crates.io 是 Rust 生态环境中的开发者们向他人贡献 Rust 开源项目的地方。
 
 例如要添加随机数库则有
 
@@ -668,29 +252,25 @@ rand = "0.8.3"
 
 当你 **确实** 需要升级 crate 时，Cargo 提供了另一个命令，`update`它会忽略 *Cargo.lock* 文件，并计算出所有符合 *Cargo.toml* 声明的最新版本。如果成功了，Cargo 会把这些版本写入 *Cargo.lock* 文件。
 
-接着，为了将 `rand` 定义引入项目包的作用域，我们加入一行 `use` 起始的包名，它以 `rand` 包名开头并列出了需要引入作用域的项。
+
+
+
+
+
+
+
+
+## 使用
+
+默认情况下，Rust 将 [*prelude*](https://doc.rust-lang.org/std/prelude/index.html) 模块中少量的类型引入到每个程序的作用域中。如果需要的类型不在 prelude 中，你必须使用 `use` 语句显式地将其引入作用域。
 
 ```rust
-use rand::Rng;
-
-fn main() {
-    let secret_number = rand::thread_rng().gen_range(1, 101);
-}
+use std::io;
 ```
 
 
 
-> 注意标准库（`std`）对于包来说也是外部 crate。因为标准库随 Rust 语言一同分发，无需修改 *Cargo.toml* 来引入 `std`，不过需要通过 `use` 将标准库中定义的项引入项目包的作用域中来引用它们
->
-> ```rust
-> use std::collections::HashMap;
-> ```
->
-> 一个以标准库 crate 名 `std` 开头的绝对路径。
-
-
-
-
+冒号（`::`）是运算符，允许将特定的函数置于类型的命名空间（namespace）下。
 
 
 
@@ -717,14 +297,6 @@ io::stdin();
 
     需要可变字符串作为参数，从标准输入句柄获取用户输入的一行，将其存入一个字符串中。需要注意，按下 enter 键时，会在字符串中增加一个换行（newline）符，即字符串最后一个字符为`\n`。
 
-    
-    
-    
-    
-    
-    
-    
-    
     
 
 
@@ -843,11 +415,11 @@ let s2 = s1;
 
 `String` 由三部分组成，如图左侧所示：一个指向存放字符串内容内存的指针，一个长度，和一个容量。这一组数据存储在栈上。右侧则是堆上存放内容的内存部分。
 
-![String in memory](Rust_img/trpl04-01.svg)
+![String in memory](https://kaisery.github.io/trpl-zh-cn/img/trpl04-01.svg)
 
 当我们将 `s1` 赋值给 `s2`，`String` 的数据被复制了，这意味着我们从栈上拷贝了它的指针、长度和容量。我们并没有复制指针指向的堆上数据。
 
-![s1 and s2 pointing to the same value](Rust_img/trpl04-02.svg)
+![s1 and s2 pointing to the same value](https://kaisery.github.io/trpl-zh-cn/img/trpl04-02.svg)
 
 为了确保内存安全，这种场景下 Rust 认为 `s1` 不再有效，因此 Rust 不需要在 `s1` 离开作用域后清理任何东西。那么，在 `s2` 被创建之后尝试使用 `s1`会报告错误：使用无效的引用。
 
@@ -979,11 +551,11 @@ fn calculate_length(s: &String) -> usize {// s 是对 String 的引用
 
 `&s1` 语法让我们创建一个 **指向** 值 `s1` 的引用，但是并不拥有它。因为并不拥有这个值，当引用离开作用域时其指向的值也不会被丢弃。变量 `s` 有效的作用域与函数参数的作用域一样，不过当引用离开作用域后并不丢弃它指向的数据，因为没有所有权。当函数使用引用而不是实际值作为参数，无需返回值来交还所有权，因为就不曾拥有所有权。
 
-![&String s pointing at String s1](Rust_img/trpl04-05.svg)
+![&String s pointing at String s1](https://kaisery.github.io/trpl-zh-cn/img/trpl04-05.svg)
 
 将获取引用作为函数参数称为 **借用**（*borrowing*）。
 
-正如变量默认是不可变的，引用也一样。（默认）不允许修改引用的值。如果想要以课可变的引用，就必须显式声明：必须将 `s` 改为 `mut`。然后必须创建一个可变引用 `&mut s` 和接受一个可变引用 `some_string: &mut String`。
+正如变量默认是不可变的，引用也一样。（默认）不允许修改引用的值。如果想要可变的引用，就必须显式声明：被引用的变量一定是可变的，即必须将 `s` 改为 `mut`。然后必须创建一个可变引用 `&mut s` 和接受一个可变引用 `some_string: &mut String`。
 
 ```rust
 fn main() {
@@ -996,6 +568,8 @@ fn change(some_string: &mut String) {
     some_string.push_str(", world");
 }
 ```
+
+
 
 可变引用有一个很大的限制：在特定作用域中的特定数据只能有一个可变引用。
 
@@ -1038,6 +612,8 @@ fn main() {
 }
 ```
 
+
+
 类似的规则也存在于同时使用可变与不可变引用中。如下
 
 ```rust
@@ -1052,9 +628,11 @@ println!("{}, {}, and {}", r1, r2, r3); // 试图同时使用引用了同一个�
 
 这里对原数据的引用（`r1`,`r2`）的最后一次使用时在第7行的`println!`，那么在此之前的`r3`可变引用改变了原数据，这在rust中是不允许的，因为违背了引用的不可变性原则。
 
+
+
 但是，多个不可变引用是可以共存使用的，并且只要在引用的原数据被改变之前使用完毕也是可以的。
 
-准确来说， 一个引用的作用域从声明的地方开始一直持续到最后一次使用为止。如果最后一次使用不可变引用在声明可变引用之前，那也是被允许的。
+准确来说， 一个引用的作用域从声明的地方开始一直持续到最后一次使用为止。所以，如果最后一次使用不可变引用在声明可变引用之前，是被允许的。
 
 ```rust
 {
@@ -1093,10 +671,6 @@ fn dangle() -> &String {
     &s		// 错误
 }
 ```
-
-
-
-
 
 
 
@@ -1278,10 +852,11 @@ Rust 的 `char` 类型是语言中最原生的字母类型，由单引号指定�
 ```rust
 let c = 'z';
 let z = 'ℤ';
+let z = '好';
 let heart_eyed_cat = '😻';
 ```
 
-Rust 的 `char` 类型的大小为四个字节(four bytes)，并代表了一个 Unicode 标量值（Unicode Scalar Value）。
+Rust 的 `char` 类型的大小为32位四个字节(four bytes)，并代表了一个 Unicode 标量值（Unicode Scalar Value）。
 
 Unicode 标量值包含从 `U+0000` 到 `U+D7FF` 和 `U+E000` 到 `U+10FFFF` 在内的值。
 
@@ -1314,8 +889,7 @@ let remainder = 43 % 5;
 
 
 
-
-## 符合类型
+## 复合类型
 
 **复合类型**（*Compound types*）可以将多个值组合成一个类型。Rust 有两个原生的复合类型：元组（tuple）和数组（array）。
 
@@ -1385,6 +959,18 @@ let a = [3, 3, 3, 3, 3];
 
 
 
+> 需要注意的是，数组的长度也是数组类型的一部分。
+>
+> 比如 对于函数
+>
+> ```rust
+> printArry(a:[int;5]);
+> ```
+>
+> 就不能传入其他长度的数组。
+
+
+
 #### 访问
 
 索引从0开始
@@ -1405,177 +991,79 @@ let second = a[1];
 
 ## 枚举
 
- **枚举**（*enumerations*），也被称作 *enums*
-
 枚举类型持有固定集合的值，这些值被称为枚举的 **成员**（*variants*）。
 
-### 定义与使用
+
+
+
+
+## 字符串
+
+### 字符串字面值
+
+字符串字面值是被硬编码进程序里的字符串值，使用 `"` 进行分割。
 
 ```rust
-enum IpAddrKind {
-    V4,
-    V6,
-}
+"123454321"
 ```
 
-创建 `IpAddrKind` 两个不同成员的实例：
+它们是不可变的。
+
+### 字符串类型
+
+字符串类型是 `String` 由标准库提供，被分配到堆上，能够存储在编译时未知大小的文本。内部使用utf-8格式的编码。
+
+一个新的空字符串由**关联函数**（*associated function*）`new`创建。
+
+也可以使用 `from`函数基于字符串字面量来创建。
 
 ```rust
-#![allow(unused)]
-fn main() {
-    enum IpAddrKind {
-        V4,
-        V6,
-    }
-
-    let four = IpAddrKind::V4;
-    let six = IpAddrKind::V6;
-}
-```
-
-枚举的成员位于其标识符的命名空间中，并使用两个冒号分开。`IpAddrKind::V4` 和 `IpAddrKind::V6` 都是 `IpAddrKind` 类型的。
-
-
-
-### 关联数据
-
-Rust的枚举可以将数据直接放进每一个枚举成员，其需要在定义时指明可以存放的数据类型
-
-```rust
-enum IpAddr {
-    V4(String),
-    V6(String),
-}
-```
-
-这样就可以直接使用
-
-```rust
-let home = IpAddr::V4(String::from("127.0.0.1"));
-let loopback = IpAddr::V6(String::from("::1"));
-```
-
-可以将任意类型的数据放入枚举成员中：例如字符串、数字类型或者结构体，甚至可以包含另一个枚举。
-
-枚举成员关联数据并不是整体性的，可以只为部分成员关联数据
-
-```rust
-enum Message {
-    Quit,						// 没有关联任何数据。
-    Move { x: i32, y: i32 },	  // 包含一个匿名结构体。
-    Write(String),				 // 包含单独一个 String。
-    ChangeColor(i32, i32, i32),	  // 包含三个 i32。
-}
+let s = String::from("hello");
 ```
 
 
 
-### 方法
+对于 `String` 类型，为了支持一个可变，可增长的文本片段，需要在堆上分配一块在编译时未知大小的内存来存放内容。这意味着：
 
-结构体和枚举还有另一个相似点：就像可以使用 `impl` 来为结构体定义方法那样，也可以在枚举上定义方法。
+- 必须在运行时向操作系统请求内存。
+
+    由我们完成：当调用 `String::from` 时，它的实现 (*implementation*) 请求其所需的内存。
+
+- 需要一个当我们处理完 `String` 时将内存返回给操作系统的方法。
+
+
+
+
+
+#### 类型转换
+
+字符串的 `parse` 方法将字符串解析成数字，这个方法可以解析多种数字类型，因此需要告诉 Rust 具体的数字类型，使用Rust的自带的推断
 
 ```rust
-impl Message {
-    fn call(&self) {
-        // 在这里定义方法体
-    }
-}
+let guess: u32  = guess.trim().parse().expect("Please type a number!");
+```
 
-let m = Message::Write(String::from("hello"));
-m.call();
+如果 `parse` 不能从字符串生成一个数字，返回一个 `Result` 的 `Err` 成员时，`expect` 会使程序崩溃并打印附带的信息。如果 `parse` 成功地将字符串转换为一个数字，它会返回 `Result` 的 `Ok` 成员，然后 `expect` 会返回 `Ok` 值中的数字。
+
+
+
+
+
+#### 方法
+
+`as_bytes` 方法可以将 `String` 转化为字节数组，返回的是队员数组的引用。
+
+```rust
+let bytes = s.as_bytes(); // bytes是&[u8]类型的
 ```
 
 
 
-
-
-### 函数参数
-
-
-
-定义一个函数来获取任何 `IpAddrKind`
+`len`方法可以获取`String`类的长度，返回的是整数，其与原本的字符串是分离，也就是说，在之后改变字符串后使用整数也不会报错。
 
 ```rust
-fn route(ip_type: IpAddrKind) { }
+let l = s.len();
 ```
-
-
-
-
-
-### 标准库中的枚举
-
-
-
-#### `IpAddr`
-
-```rust
-struct Ipv4Addr {
-    // --snip--
-}
-
-struct Ipv6Addr {
-    // --snip--
-}
-
-enum IpAddr {
-    V4(Ipv4Addr),
-    V6(Ipv6Addr),
-}
-```
-
-
-
-#### `Option`
-
-`Option` 是标准库定义的一个枚举。`Option` 类型应用广泛因为它编码了一个非常普遍的场景，即一个值要么有值要么没值。
-
-Rust 并没有很多其他语言中有的空值功能。**空值**（*Null* ）是一个值，它代表没有值。在有空值的语言中，变量总是这两种状态之一：空值和非空值。
-
-Rust 并没有空值，不过它确实拥有一个可以编码存在或不存在概念的枚举。这个枚举是 `Option<T>`，定义于标准库中。
-
-```rust
-enum Option<T> {
-    Some(T),
-    None,
-}
-```
-
-`<T>` 意味着 `Option` 枚举的 `Some` 成员可以包含任意类型的数据。
-
-`Option<T>`是如此有用以至于它甚至被包含在了 prelude 之中，即不需要将其显式引入作用域，它的成员也是如此，可以不需要 `Option::` 前缀来直接使用 `Some` 和 `None`。
-
-```rust
-let some_number = Some(5);
-let some_string = Some("a string");
-
-let absent_number: Option<i32> = None;
-```
-
-当有一个 `Some` 值时，我们就知道存在一个值，而这个值保存在 `Some` 中。当有个 `None` 值时，在某种意义上，它跟空值具有相同的意义：并没有一个有效的值。
-
-如果直接使用 `None` 而不是 `Some`，需要告诉 Rust `Option<T>` 是什么类型的，因为编译器只通过 `None` 值无法推断出 `Some` 成员保存的值的类型。
-
-
-
-> `Option<T>` 为什么就比空值要好？
->
-> 因为 `Option<T>` 和 `T`（这里 `T` 可以是任何类型）是不同的类型，编译器不允许像一个肯定有效的值那样使用 `Option<T>`。
->
-> ```rust
-> let x: i8 = 5;
-> let y: Option<i8> = Some(5);
-> 
-> let sum = x + y;		// 错误，Option<i8> 与 i8 是不同的类型，不能直接相加
-> ```
->
-> 当在 Rust 中拥有一个像 `i8` 这样类型的值时，编译器确保它总是有一个有效的值。我们可以自信使用而无需做空值检查。
->
-> 只有当使用 `Option<i8>`（或者任何用到的类型）的时候需要担心可能没有值，而编译器会确保我们在使用值之前处理了为空的情况。
->
-> 即在对 `Option<T>` 进行 `T` 的运算之前必须将其转换为 `T`。通常这能帮助我们捕获到空值最常见的问题之一：假设某值不为空但实际上为空的情况。
-
-
 
 
 
@@ -1585,7 +1073,7 @@ let absent_number: Option<i32> = None;
 
 ## Slice类型
 
-slice 类型允许你**引用**集合中一段连续的元素序列，而不用引用整个集合。它是一个没有所有权的数据类型。
+slice 类型允许你引用集合中一段连续的元素序列，而不用引用整个集合。它是一个没有所有权的数据类型。
 
 ```rust
 let s = String::from("hello world");
@@ -1598,9 +1086,7 @@ let world = &s[6..11];
 
 实际上，slice的存储是由指针和长度构成的。如下
 
-![world containing a pointer to the 6th byte of String s and a length 5](Rust_img/trpl04-06.svg)
-
-
+![world containing a pointer to the 6th byte of String s and a length 5](https://kaisery.github.io/trpl-zh-cn/img/trpl04-06.svg)
 
 
 
@@ -1642,32 +1128,17 @@ let world = &s[6..11];
 
 
 
-事实上“字符串 slice” 的类型声明写作 `&str`，是一个不可变引用。在使用字符串字面值时，
+如果不使用 `String::from()` 方法在堆上新建一个字符串，而是直接赋值，那么将会把字符串分配在栈上，并使用slice对原字符串数据进行不可变引用。
 
 ```rust
-let s = "Hello, world!";
+let str1 = "Hello world"; //&str
 ```
 
-实际是一个指向二进制程序特定位置的 slice。
 
 
 
-也有其他类型的更通用的slice，对于数组
 
-```rust
-#![allow(unused)]
-fn main() {
-    let a = [1, 2, 3, 4, 5];
-}
-```
 
-取其中一部分
-
-```rust
-let slice = &a[1..3];
-```
-
-这个 slice 的类型是 `&[i32]`。它跟字符串 slice 的工作方式一样，通过存储第一个集合元素的引用和一个集合总长度。也可以对其他所有集合使用这类 slice。
 
 
 
@@ -1758,7 +1229,6 @@ fn build_user(email:Stirng, username:String)->User{
 Rust也支持从其他实例更新部分数据后再创建实例，即**结构体更新语法**（*struct update syntax*）
 
 ```rust
-
 #![allow(unused)]
 fn main() {
 struct User {
@@ -1932,6 +1402,9 @@ let origin = Point(0, 0, 0);
 `black` 和 `origin` 值的类型不同，因为它们是不同的元组结构体的实例，使有着相同的结构的元组成为不同的类型时，元组结构体是很有用的。
 
 元组结构体实例类似于元组：可以将其解构为单独的部分，也可以使用 `.` 后跟索引来访问单独的值。
+
+```rust
+```
 
 
 
@@ -2145,7 +1618,7 @@ let s = String::from("hello");
 
 - 必须在运行时向操作系统请求内存。
 
-  由我们完成：当调用 `String::from` 时，它的实现 (*implementation*) 请求其所需的内存。
+    由我们完成：当调用 `String::from` 时，它的实现 (*implementation*) 请求其所需的内存。
 
 - 需要一个当我们处理完 `String` 时将内存返回给操作系统的方法。
 
@@ -2160,17 +1633,13 @@ let s = String::from("hello");
 可以通过 `push_str` 方法来附加字符串 slice，从而使 `String` 变长，其采用字符串 slice，因为并不需要获取参数的所有权，而只是又新复制了一份数据。所以下列代码不会报错。
 
 ```rust
-let mut s1 = String::from("foo");
-let s2 = "bar";
-s1.push_str(s2);
-println!("s2 is {}", s2);
+let mut s1 = String::from("foo");let s2 = "bar";s1.push_str(s2);println!("s2 is {}", s2);
 ```
 
 `push` 方法被定义为获取一个单独的字符作为参数，并附加到 `String` 中。
 
 ```rust
-let mut s = String::from("lo");
-s.push('l');
+let mut s = String::from("lo");s.push('l');
 ```
 
 
@@ -2178,9 +1647,7 @@ s.push('l');
 另外，可以方便的使用 `+` 运算符或 `format!` 宏来拼接 `String` 值。
 
 ```rust
-let s1 = String::from("Hello, ");
-let s2 = String::from("World!");
-let s3 = s1 + &s2;		// s1 被移动了，不能继续使用
+let s1 = String::from("Hello, ");let s2 = String::from("World!");let s3 = s1 + &s2;		// s1 被移动了，不能继续使用
 ```
 
 `+` 实际上调用的是`add`函数，会获取字符串的所有权。对于`s1`，参与运算后将不再拥有字符串的所有权，而`s2`使用引用也是因为`add`函数的签名要求。
@@ -2314,6 +1781,10 @@ let l = s.len();
 
 
 
+#
+
+
+
 # 语法
 
 ## 语句
@@ -2364,6 +1835,11 @@ let x = 1; // 将x初始化为 1
 
 #### 文档注释
 
+`///` 开始一个文档注释。
+
+```rust
+```
+
 
 
 
@@ -2405,6 +1881,7 @@ Rust 并不会尝试自动地将非布尔值转换为布尔值，即代码中的
 因为 `if` 是一个表达式，我们可以在 `let` 语句的右侧使用它，这意味着 `if` 的每个分支的可能的返回值都必须是相同类型；
 
 ```rust
+let condition = true;
 let number = if condition {
     5
 } else {
@@ -2416,17 +1893,9 @@ let number = if condition {
 
 
 
-
-
-
-
 #### `match` 表达式
 
-Rust 有一个叫做 `match` 的极为强大的控制流运算符，它允许我们将一个值与一系列的模式相比较，并根据相匹配的模式执行相应代码。
-
-一个 `match` 表达式由 **分支（arms）** 构成。一个分支包含一个 **模式**（*pattern*）和表达式开头的值与分支模式相匹配时应该执行的代码。模式可由字面值、变量、通配符和许多其他内容构成；
-
-Rust 获取提供给 `match` 的值并挨个检查每个分支的模式，并且在遇到第一个 “符合” 的模式时，值会进入相关联的代码块并在执行中被使用。
+一个 `match` 表达式由 **分支（arms）** 构成。一个分支包含一个 **模式**（*pattern*）和表达式开头的值与分支模式相匹配时应该执行的代码。Rust 获取提供给 `match` 的值并挨个检查每个分支的模式。
 
 ```rust
 match guess.cmp(&secret_number) {
@@ -2436,89 +1905,7 @@ match guess.cmp(&secret_number) {
 }
 ```
 
-每个分支相关联的代码是一个表达式，而表达式的结果值将作为整个 `match` 表达式的返回值。
-
-如果分支代码较短的话通常不使用大括号。如果想要在分支中运行多行代码，可以使用大括号。
-
-
-
-匹配分支的另一个有用的功能是可以绑定匹配的模式的部分值。这也就是如何从枚举成员中提取值的。
-
-```rust
-#[derive(Debug)]
-enum State {
-    Frontground,
-    Background,
-}
-
-enum Program {
-    Beginning,
-    Stop,
-    Running(State),		// 运行时可能处于不同的状态
-}
- 
-fn check_program(program: Program) -> u8 {
-    match program {
-        Program::Beginning => 1,
-        Program::Stop => 10,
-        Program::Running(state) => {		// 这里绑定了state变量
-            println!("Running in {:?}!", state);
-            20
-        },
-    }
-}
-```
-
-在匹配 `Program::Running` 成员的分支的模式中增加了一个叫做 `state` 的变量。当匹配到 `Program::Running` 时，变量 `state` 将会绑定program中Running的值。接着在那个分支的代码中使用 `state`。
-
-
-
-Rust 知道我们没有覆盖所有可能的情况甚至知道哪些模式被忘记了！Rust 中的匹配是 **穷尽的**（*exhaustive*）：必须穷举到最后的可能性来使代码有效。Rust 也提供了一个模式用于不想列举出所有可能值的场景。即`_`通配符。
-
-`_` 模式会匹配所有的值。通过将其放置于其他分支之后，`_` 将会匹配所有之前没有指定的可能的值。
-
-
-
->`if let` 语法
->
->`if let` 语法让我们以一种不那么冗长的方式结合 `if` 和 `let`，来处理只匹配一个模式的值而忽略其他模式的情况。
->
-> 对于下列情况
->
->```rust
->let some_u8_value= Some(0u8);
->match some_u8_value{
->    Some(3) => println!("there"),
->    _ =>(),
->}
->```
->
->`match` 只关心当值为 `Some(3)` 时执行代码，使用match就必须为了满足 `match` 表达式（穷尽性）的要求，即必须在处理完这唯一的成员后加上 `_ => ()`，而Rust提供了 `if let` 这种更短的方式。
->
->```rust
->if let Some(3) = some_u8_value{
->    println!("there");
->}
->```
->
->`if let` 获取通过等号分隔的一个模式和一个表达式。它的工作方式与 `match` 相同，这里的表达式对应 `match` 而模式则对应第一个分支。
->
->可以认为 `if let` 是 `match` 的一个语法糖，它当值匹配某一模式时执行代码而忽略所有其他值，这编写更少代码，更少的缩进和更少的样板代码，但也会失去 `match` 强制要求的穷尽性检查。`match` 和 `if let` 之间的选择依赖特定的环境以及增加简洁度和失去穷尽性检查的权衡取舍。
->
->可以在 `if let` 中包含一个 `else`。`else` 块中的代码与 `match` 表达式中的 `_` 分支块中的代码相同，这样的 `match` 表达式就等同于 `if let` 和 `else`。
->
->```rust
->let mut count = 0;
->if let Coin::Quarter(state) = coin {
->    println!("State quarter from {:?}!", state);
->} else {
->    count += 1;
->}
->```
->
->
-
-
+注意，单独的`match`语句块结尾不带`;`
 
 
 
@@ -2617,6 +2004,20 @@ for element in a.iter() {
 
 使用 `for` 循环的话，不需要惦记着在改变数组元素个数时修改其他的代码了。
 
+如上所示，遍历数组中的元素需要使用到数组的迭代器`.iter()`，
+
+当让也可以使用语法糖`&`
+
+```Rust
+for e in &a {
+    println!("the value is: {}", e);
+}
+```
+
+
+
+
+
 `for` 循环的安全性和简洁性使得它成为 Rust 中使用最多的循环结构。它也可以循环执行代码特定次数，需要借助标准库提供的类型 `Range`。
 
 ```rust
@@ -2626,6 +2027,10 @@ for number in (1..4).rev() {
 ```
 
 > `rev`方法用来反转 range
+
+
+
+
 
 
 
@@ -2744,32 +2149,6 @@ Rust 标准库中有很多叫做 `Result` 的类型，很多标准库函数返�
 
 
 
-
-
-
-
-# 派生
-
-## trait
-
-
-
-### 打印
-
-对于简单的自定义类型。宏`println!`是无法像打印基本类型一样打印他们的数据信息的，原因是基本类型都默认实现了 `Display`。
-
-`println!` 宏能处理很多类型的格式，不过，`{}` 默认告诉 `println!` 使用被称为 `Display` 的格式，它的完整定义是`std::fmt::Display`。
-
-
-
-# 泛型
-
-
-
-
-
-
-
 # 宏
 
 最后一个字母为 `!`
@@ -2788,31 +2167,6 @@ Rust 标准库中有很多叫做 `Result` 的类型，很多标准库函数返�
 let lang = "Rust";
 print!("{} is Best", lang);
 ```
-
-> 对于自定义类型需要实现 trait `std::fmt::Display`。
-
-在 `{}` 中加入 `:?` 指示符告诉 `println!` 我们想要使用叫做 `Debug` 的输出格式。
-
-`Debug` 是一个 trait，它允许我们以一种对开发者有帮助的方式打印结构体，以便当我们调试代码时能看到它的值。
-
-> 对于自定义类型需要实现 trait `std::fmt::Debug`。
->
-> 如果不想显式实现也可以使用注解  `#[derive(Debug)]` 来派生 `Debug` trait，这将显示所打印实例的所有字段。
-
-```rust
-#[dervice(Debug)]
-struct Rect{
-    width:u32,
-    height:u32,
-}
-
-fn main(){
-    let rect1 = Rect{width:32,heghit:50};
-    println!("{:?}",rect1);
-}
-```
-
-可以使用 `{:#?}` 替换的 `{:?}`，相较于`{:?}`其效果是在每个字段打印后进行换行。
 
 
 
