@@ -77,7 +77,7 @@ rustup self uninstall
 
 #### 查看安装信息
 
-```
+```shell
 rustc --version
 ```
 
@@ -3599,3 +3599,1670 @@ fn main(){
 这里使用 `thread::spawn` 创建了一个新线程并使用 `move` 将 `tx` 移动到闭包中这样新建线程就拥有 `tx` 了。新建线程需要拥有通道的发送端以便能向通道发送消息。
 
 通道的发送端有一个 `send` 方法用来获取需要放入通道的值。`send` 方法返回一个 `Result<T, E>` 类型，所以如果接收端已经被丢弃了，将没有发送的目标对象，则发送操作会返回错误。在这个例子中，出错的时候调用 `unwrap` 产生 panic。
+
+下面定义接收端
+
+```rust
+use std::thread;
+use std::sync::mpsc;
+
+fn main() {
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        let val = String::from("hi");
+        tx.send(val).unwrap();
+    });
+ // 接收端
+    let received = rx.recv().unwrap();
+    println!("Got: {}", received);
+}
+
+```
+
+通道的接收端有两个有用的方法：`recv` 和 `try_recv`。这里，我们使用了 `recv`，它是 *receive* 的缩写。这个方法会阻塞主线程执行直到从通道中接收一个值。一旦发送了一个值，`recv` 会在一个 `Result<T, E>` 中返回它。当通道发送端关闭，`recv` 会返回一个错误`Err`表明不会再有新的值到来了。同样的，这里为了简洁，使用了`unwrap`。
+
+`try_recv` 不会阻塞，相反它立刻返回一个 `Result<T, E>`：`Ok` 值包含可用的信息，而 `Err` 值代表此时没有任何消息。如果线程在等待消息过程中还有其他工作时使用 `try_recv` 很有用：可以编写一个循环来频繁调用 `try_recv`，在有可用消息时进行处理，其余时候则处理一会其他工作直到再次检查。
+
+### 所有权转移
+
+所有权规则在消息传递中扮演了重要角色，其有助于我们编写安全的并发代码。防止并发编程中的错误是在 Rust 程序中考虑所有权的一大优势。
+
+在新建线程中的通道中发送完 `val` 值 **之后** 再使用它是不允许的。
+
+```rust
+use std::tthread;
+use std::sync::mpsc;
+
+fn main(){
+    let(tx, rx) = mpsc::channel();
+    
+    thread::spawn(move ||{
+        let val = string::from("hi");
+        tx.send(val).unwrap();
+        println!("val is {}", val); // 这里会发生编译错误
+    });
+    
+    let received = rx.recv().unwrap();
+    println!("Got: {}", received);
+}
+```
+
+这里尝试在通过 `tx.send` 发送 `val` 到通道中之后将其打印出来。允许这么做是一个坏主意：一旦将值发送到另一个线程后，那个线程可能会在我们再次使用它之前就将其修改或者丢弃。其他线程对值可能的修改会由于不一致或不存在的数据而导致错误或意外的结果。
+
+`send` 函数获取其参数的所有权并移动这个值归接收者所有。这可以防止在发送后再次意外地使用这个值；所有权系统检查一切是否合乎规则。
+
+一个发送者当然可以接连发送多个消息
+
+```rust
+use std::thread;
+use std::sync::mpsc;
+
+fn main(){
+    let (tx, rx) = mpsc::channel();
+    
+    thread::spawn(move ||{
+        let vals = vec![
+            String::from("hi"),
+            String::from("from"),
+            String::from("the"),
+            String::from("thread"),
+        ];
+        
+        for val in vals{
+            tx.send(val).unwrap();
+            thread::sleep(Duration::from_secs(1));
+        }
+        
+    });
+    
+    for received in rx{
+        println!("Got: {}", received);
+    }
+}
+```
+
+这一次，在新建线程中有一个字符串 vector 希望发送到主线程。我们遍历他们，单独的发送每一个字符串并通过一个 `Duration` 值调用 `thread::sleep` 函数来暂停一秒。
+
+在主线程中，不再显式调用 `recv` 函数：而是将 `rx` 当作一个迭代器。对于每一个接收到的值，我们将其打印出来。当通道被关闭时，迭代器也将结束。
+
+因为主线程中的 `for` 循环里并没有任何暂停或等待的代码，所以可以说主线程是在等待从新建线程中接收值。
+
+### 多发送者
+
+`mpsc`是 *multiple producer, single consumer* 的缩写，即其支持多个生产者。那么可以运用 `mpsc` 来创建向同一接收者发送值的多个线程，这可以通过克隆通道的发送端来做到
+
+```rust
+use std::thread;
+use std::sync::mpsc;
+
+fn main(){
+ let (tx, rx) = mpsc::channel();
+    
+    let tx1 = tx.clone();
+    
+    thread::spawn(move ||{
+        let vals = vec![
+            String::from("hi"),
+            String::from("from"),
+            String::from("the"),
+            String::from("thread"),
+        ];
+        
+        for val in vals{
+            tx1.send(val).unwrap();
+            thread::sleep(Duration::from_secs(1));
+        }
+    });
+    
+    thread::spawn(move ||{
+        let vals = vec![
+            String::from("more"),
+            String::from("messages"),
+            String::from("for"),
+            String::from("you"),
+        ];
+        
+        for val in vals{
+            tx.send(val).unwrap();
+            thread::sleep(Duration::from_secs(1));
+        }
+    });
+    
+    for received in rx{
+        println!("Got: {}", received);
+    }
+}
+
+```
+
+这一次，在创建新线程之前，对通道的发送端调用了 `clone` 方法。这会给我们一个可以传递给第一个新建线程的发送端句柄。将原始的通道发送端传递给第二个新建线程。这样就会有两个线程，每个线程将向通道的接收端发送不同的消息。
+
+发送和接受的顺序不是一定的，这依赖于你的系统。这也就是并发既有趣又困难的原因。如果通过 `thread::sleep` 做实验，在不同的线程中提供不同的值，就会发现他们的运行更加不确定，且每次都会产生不同的输出。
+
+## 共享状态并发
+
+消息传递是一个很好的处理并发的方式，但并不是唯一一个。也可以使用共享内存。
+
+在某种程度上，任何编程语言中的通道都类似于单所有权，因为一旦将一个值传送到通道中，将无法再使用这个值。共享内存类似于多所有权：多个线程可以同时访问相同的内存位置。
+
+智能指针如何使得多所有权成为可能，然而这会增加额外的复杂性，因为需要以某种方式管理这些不同的所有者。Rust 的类型系统和所有权规则极大的协助了正确地管理这些所有权。作为一个例子，让我们看看互斥器，一个更为常见的共享内存并发原语。
+
+### 互斥器
+
+**互斥器**（*mutex*）是 *mutual exclusion* 的缩写，也就是说，任意时刻，其只允许一个线程访问某些数据。为了访问互斥器中的数据，线程首先需要通过获取互斥器的 **锁**（*lock*）来表明其希望访问数据。锁是一个作为互斥器一部分的数据结构，它记录谁有数据的排他访问权。因此，我们描述互斥器为通过锁系统 **保护**（*guarding*）其数据。
+
+互斥器以难以使用著称，因为你不得不记住：
+
+1. 在使用数据之前尝试获取锁。
+2. 处理完被互斥器所保护的数据之后，必须解锁数据，这样其他线程才能够获取锁。
+
+正确的管理互斥器异常复杂，这也是许多人之所以热衷于通道的原因。然而，在 Rust 中，得益于类型系统和所有权，我们不会在锁和解锁上出错。
+
+### `Mutex<T>`的API
+
+从在单线程上下文使用互斥器开始认识一下`Mutex<T>`的API
+
+```rust
+use std::sync::Mutex;
+
+fn main(){
+    let m = Mutex::new(5);
+
+    {
+        let mut num = m.lock().unwrap();
+        *num = 6;
+    }
+
+    println!("m = {:?}", m);
+}
+```
+
+像很多类型一样，我们使用关联函数 `new` 来创建一个 `Mutex<T>`。使用 lock 方法获取锁，以访问互斥器中的数据。这个调用会阻塞当前线程，直到我们拥有锁为止。
+
+如果另一个线程拥有锁，并且那个线程 panic 了，则 `lock` 调用会失败。在这种情况下，没人能够再获取锁，所以这里选择 `unwrap` 并在遇到这种情况时使线程 panic。
+
+一旦获取了锁，就可以将返回值（在这里是num）视为一个其内部数据的可变引用了。类型系统确保了我们在使用 m 中的值之前获取锁：`Mutex<i32>` 并不是一个 i32，所以必须获取锁才能使用这个 i32 值。我们是不会忘记这么做的，因为反之类型系统不允许访问内部的 i32 值。
+
+正如你所怀疑的，`Mutex<T>` 是一个智能指针。更准确的说，lock 调用返回一个叫做 `MutexGuard` 的智能指针。这个智能指针实现了 `Deref` 来指向其内部数据；其也提供了一个 `Drop` 实现当 `MutexGuard` 离开作用域时自动释放锁。为此，我们不会冒忘记释放锁并阻塞互斥器为其它线程所用的风险，因为锁的释放是自动发生的。
+
+丢弃了锁之后，可以打印出互斥器的值，并发现能够将其内部的 i32 改为 6。
+
+### 线程间共享`Mutex<T>`
+
+尝试使用 `Mutex<T>` 在多个线程间共享值。我们将启动十个线程，并在各个线程中对同一个计数器值加一，这样计数器将从 0 变为 10。
+
+```rust
+use std::sync::Mutex;
+use std::thread;
+
+fn main(){
+    let counter = Mutex::new(0);
+    let mut handles = vec![];
+
+    for _ in 0..10 {
+        let handle =  thread::spawn(move || {
+            let mut num = counter.lock().unwrap();
+
+            *num += 1;
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles{
+        handle.join().unwrap();
+    }
+
+    println!("Result: {}", *counter.lock().unwrap());
+}
+```
+
+创建了一个 counter 变量来存放内含 i32 的 `Mutex<T>`。接下来遍历 range 创建了 10 个线程。使用了 `thread::spawn` 并对所有线程使用了相同的闭包：他们每一个都将调用 `lock` 方法来获取 `Mutex<T>` 上的锁，接着将互斥器中的值加一。当一个线程结束执行，num 会离开闭包作用域并释放锁，这样另一个线程就可以获取它了。
+
+在主线程中，收集了所有的 `join` 句柄，调用它们的 `join` 方法来确保所有线程都会结束。这时，主线程会获取锁并打印出程序的结果。
+
+但是这个程序仍不能编译成功，因为在每次新建线程时，都要把`counter` 所有权移入新线程，而这是不允许的。
+
+但是这种场景下也不能使用智能指针 `Rc<T>` 来创建引用计数的值，使拥有多所有者。
+
+```rust
+use std::rc::Rc;
+use std::sync::Mutex;
+use std::thread;
+
+fn main() {
+    let counter = Rc::new(Mutex::new(0));
+    let mut handles = vec![];
+
+    for _ in 0..10 {
+        let counter = Rc::clone(&counter);
+        let handle = thread::spawn(move || {
+            let mut num = counter.lock().unwrap();
+
+            *num += 1;
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    println!("Result: {}", *counter.lock().unwrap());
+}
+```
+
+这里编译会报错
+
+```shell
+error[E0277]: `std::rc::Rc<std::sync::Mutex<i32>>` cannot be sent between threads safely
+  --> src/main.rs:11:22
+   |
+11 |         let handle = thread::spawn(move || {
+   |                      ^^^^^^^^^^^^^ `std::rc::Rc<std::sync::Mutex<i32>>`
+cannot be sent between threads safely
+   |
+   = help: within `[closure@src/main.rs:11:36: 14:10
+counter:std::rc::Rc<std::sync::Mutex<i32>>]`, the trait `std::marker::Send`
+is not implemented for `std::rc::Rc<std::sync::Mutex<i32>>`
+   = note: required because it appears within the type
+`[closure@src/main.rs:11:36: 14:10 counter:std::rc::Rc<std::sync::Mutex<i32>>]`
+   = note: required by `std::thread::spawn`
+```
+
+第一行错误表明 `std::rc::Rc<std::sync::Mutex<i32>>` cannot be sent between threads safely。编译器也告诉了我们原因 the trait bound `Send` is not satisfied。
+
+`Send`：这是确保所使用的类型可以用于并发环境的 trait 之一。
+
+这里也就说明，`Rc<T>` 并不能安全的在线程间共享。当 `Rc<T>` 管理引用计数时，它必须在每一个 clone 调用时增加计数，并在每一个克隆被丢弃时减少计数。`Rc<T>` 并没有使用任何并发原语，来确保改变计数的操作不会被其他线程打断。在计数出错时可能会导致诡异的 bug，比如可能会造成内存泄漏，或在使用结束之前就丢弃一个值。
+
+所幸 `Arc<T>` 正是 这么一个类似 `Rc<T>` 并可以安全的用于并发环境的类型。字母 "a" 代表 原子性（atomic），所以这是一个原子引用计数（atomically reference counted）类型。原子性是另一类这里还未涉及到的并发原语：请查看标准库中 std::sync::atomic 的文档来获取更多细节。其中的要点就是：原子性类型工作起来类似原始类型，不过可以安全的在线程间共享。
+
+你可能会好奇为什么不是所有的原始类型都是原子性的？为什么不是所有标准库中的类型都默认使用 `Arc<T>` 实现？原因在于线程安全带有性能惩罚，我们希望只在必要时才为此买单。如果只是在单线程中对值进行操作，原子性提供的保证并无必要，代码可以因此运行的更快。
+
+所以，只需要将程序中的 `Rc<T>` 更改成 `Arc<T>`
+
+```rust
+use std::sync::{Mutex, Arc};
+use std::thread;
+
+fn main() {
+    let counter = Arc::new(Mutex::new(0));
+    let mut handles = vec![];
+
+    for _ in 0..10 {
+        let counter = Arc::clone(&counter);
+        let handle = thread::spawn(move || {
+            let mut num = counter.lock().unwrap();
+
+            *num += 1;
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    println!("Result: {}", *counter.lock().unwrap());
+}
+```
+
+最后，程序将打印 10 并退出。
+
+> **`RefCell<T>`/`Rc<T>` 与 `Mutex<T>`/`Arc<T>`的相似性**
+>  
+> `Mutex<T>` 提供了内部可变性，就像 Cell 系列类型那样。`RefCell<T>` 可以改变 `Rc<T>` 中的内容那样，同样的可以使用 `Mutex<T>` 来改变 `Arc<T>` 中的内容。
+>
+
+但是， Rust 不能避免使用 `Mutex<T>` 的全部逻辑错误。正如使用 `Rc<T>` 就有造成引用循环的风险，这时两个 `Rc<T>` 值相互引用，造成内存泄漏。同理，`Mutex<T>` 也有造成 死锁（deadlock） 的风险。这发生于当一个操作需要锁住两个资源而两个线程各持一个锁，这会造成它们永远相互等待。
+
+## `Sync` 与 `Send trait`可扩展并发
+
+Rust 的并发模型中一个有趣的方面是：语言本身对并发知之甚少。我们之前讨论的几乎所有内容，都属于标准库，而不是语言本身的内容。由于不需要语言提供并发相关的基础设施，并发方案不受标准库或语言所限：我们可以编写自己的或使用别人编写的并发功能。
+
+然而有两个并发概念是内嵌于语言中的：std::marker 中的 Sync 和 Send trait。
+
+### `Send` 允许在线程间转移所有权
+
+`Send` 标记 trait 表明类型的所有权可以在线程间传递。几乎所有的 Rust 类型都是Send 的，不过有一些例外，包括 `Rc<T>`（这是不能 Send 的，因为如果克隆了 `Rc<T>` 的值并尝试将克隆的所有权转移到另一个线程，这两个线程都可能同时更新引用计数）。为此，`Rc<T>` 被实现为用于单线程场景，这时不需要为拥有线程安全的引用计数而付出性能代价。
+
+因此，Rust 类型系统和 trait bound 确保永远也不会意外的将不安全的 `Rc<T>` 在线程间发送。使用标记为 `Send` 的 `Arc<T>`， 就没有问题了。
+
+任何完全由 Send 的类型组成的类型也会自动被标记为 Send。几乎所有基本类型都是 Send 的，除了裸指针（raw pointer）。
+
+### `Sync` 允许多线程访问
+
+`Sync` 标记 trait 表明一个实现了 `Sync` 的类型可以安全的在多个线程中拥有其值的引用。换一种方式来说，对于任意类型 `T`，如果 `&T`（`T` 的引用）是 `Send` 的话 `T` 就是 Sync 的，这意味着其引用就可以安全的发送到另一个线程。
+
+类似于 `Send` 的情况，基本类型是 `Sync` 的，完全由 `Sync` 的类型组成的类型也是 `Sync` 的。
+
+智能指针 `Rc<T>` 也不是 Sync 的，出于其不是 Send 相同的原因。`RefCell<T>`和 `Cell<T>` 系列类型不是 Sync 的。`RefCell<T>` 在运行时所进行的借用检查也不是线程安全的。`Mutex<T>` 是 Sync 的，它可以被用来在多线程中共享访问。
+
+### 不需要手动实现`Send`和`Sync`
+
+通常并不需要手动实现 Send 和 Sync trait，因为由 Send 和 Sync 的类型组成的类型，自动就是 Send 和 Sync 的。因为他们是标记 trait，甚至都不需要实现任何方法。他们只是用来加强并发相关的不可变性的。
+
+手动实现这些标记 trait 涉及到编写不安全的 Rust 代码，
+
+# 面向对象编程
+
+面向对象编程（Object-Oriented Programming，OOP）是一种模式化编程方式。对象（Object）来源于 20 世纪 60 年代的 Simula 编程语言。这些对象影响了 Alan Kay 的编程架构中对象之间的消息传递。他在 1967 年创造了 面向对象编程 这个术语来描述这种架构。
+
+关于 OOP 是什么有很多相互矛盾的定义；在一些定义下，Rust 是面向对象的；在其他定义下，Rust 不是。
+
+## 面向对象语言的特征
+
+关于一个语言被称为面向对象所需的功能，在编程社区内并未达成一致意见。Rust 被很多不同的编程范式影响，包括面向对象编程；
+
+面向对象编程语言所共享的一些特性往往是对象、封装和继承。
+
+### 对象
+
+对象包含数据和行为，由 Erich Gamma、Richard Helm、Ralph Johnson 和 John Vlissides（Addison-Wesley Professional, 1994）编写的书 Design Patterns: Elements of Reusable Object-Oriented Software 被俗称为 The Gang of Four (字面意思为“四人帮”)，它是面向对象编程模式的目录。它这样定义面向对象编程：
+
+> 面向对象的程序是由对象组成的。一个 对象 包含数据和操作这些数据的过程。这些过程通常被称为 方法 或 操作。
+
+在这个定义下，Rust 是面向对象的：结构体和枚举包含数据而 impl 块提供了在结构体和枚举之上的方法。虽然带有方法的结构体和枚举并不被 称为 对象，但是他们提供了与对象相同的功能。
+
+### 封装
+
+另一个通常与面向对象编程相关的方面是 封装（encapsulation）的思想：对象的实现细节不能被使用对象的代码获取到。所以唯一与对象交互的方式是通过对象提供的公有 API；使用对象的代码无法深入到对象内部并直接改变数据或者行为。封装使得改变和重构对象的内部时无需改变使用对象的代码。
+
+Rust可以使用 `pub` 关键字来决定模块、类型、函数和方法是公有的，而默认情况下其他一切都是私有的。例如
+
+```rust
+pub struct AveragedCollection {
+    list: Vec<i32>,
+    average: f64,
+}
+```
+
+结构体自身被标记为 pub，这样其他代码就可以使用这个结构体，但是在结构体内部的字段仍然是私有的。这是非常重要的，因为我们希望保证变量被增加到列表或者被从列表删除时，也会同时更新平均值。可以通过在结构体上实现 add、remove 和 average 方法来做到这一点。
+
+```rust
+#![allow(unused)]
+fn main() {
+    pub struct AveragedCollection {
+        list: Vec<i32>,
+        average: f64,
+    }
+    impl AveragedCollection {
+        pub fn add(&mut self, value: i32) {
+            self.list.push(value);
+            self.update_average();
+        }
+
+        pub fn remove(&mut self) -> Option<i32> {
+            let result = self.list.pop();
+            match result {
+                Some(value) => {
+                    self.update_average();
+                    Some(value)
+                },
+                None => None,
+            }
+        }
+
+        pub fn average(&self) -> f64 {
+            self.average
+        }
+
+        fn update_average(&mut self) {
+            let total: i32 = self.list.iter().sum();
+            self.average = total as f64 / self.list.len() as f64;
+        }
+    }
+}
+```
+
+公有方法 add、remove 和 average 是修改 AveragedCollection 实例的唯一方式。当使用 add 方法把一个元素加入到 list 或者使用 remove 方法来删除时，这些方法的实现同时会调用私有的 update_average 方法来更新 average 字段。
+
+list 和 average 是私有的，所以没有其他方式来使得外部的代码直接向 list 增加或者删除元素，否则 list 改变时可能会导致 average 字段不同步。average 方法返回 average 字段的值，这使得外部的代码只能读取 average 而不能修改它。
+
+因为我们已经封装好了 AveragedCollection 的实现细节，将来可以轻松改变类似数据结构这些方面的内容。例如，可以使用 `HashSet<i32>` 代替 `Vec<i32>` 作为 list 字段的类型。只要 add、remove 和 average 公有函数的签名保持不变，使用 AveragedCollection 的代码就无需改变。相反如果使得 list 为公有，就未必都会如此了： `HashSet<i32>` 和 `Vec<i32>` 使用不同的方法增加或移除项，所以如果要想直接修改 list 的话，外部的代码可能不得不做出修改。
+
+如果封装是一个语言被认为是面向对象语言所必要的方面的话，那么 Rust 满足这个要求。在代码中不同的部分使用 pub 与否可以封装其实现细节。
+
+### 继承
+
+继承（Inheritance）是一个很多编程语言都提供的机制，一个对象可以定义为继承另一个对象的定义，这使其可以获得父对象的数据和行为，而无需重新定义。
+
+如果一个语言必须有继承才能被称为面向对象语言的话，那么 Rust 就不是面向对象的。无法定义一个结构体继承父结构体的成员和方法。然而，如果你过去常常在你的编程工具箱使用继承，根据你最初考虑继承的原因，Rust 也提供了其他的解决方案。
+
+选择继承有两个主要的原因。第一个是为了重用代码：一旦为一个类型实现了特定行为，继承可以对一个不同的类型重用这个实现。相反 Rust 代码可以使用默认 trait 方法实现来进行共享，例如在 Summary trait 上增加的 summarize 方法的默认实现。任何实现了 Summary trait 的类型都可以使用 summarize 方法而无须进一步实现。这类似于父类有一个方法的实现，而通过继承子类也拥有这个方法的实现。当实现 Summary trait 时也可以选择覆盖 summarize 的默认实现，这类似于子类覆盖从父类继承的方法实现。
+
+第二个使用继承的原因与类型系统有关：表现为子类型可以用于父类型被使用的地方。这也被称为 多态（polymorphism），这意味着如果多种对象共享特定的属性，则可以相互替代使用。
+
+> 多态（Polymorphism）
+>
+>很多人将多态描述为继承的同义词。不过它是一个有关可以用于多种类型的代码的更广泛的概念。对于继承来说，这些类型通常是子类。 Rust 则通过泛型来对不同的可能类型进行抽象，并通过 trait bounds 对这些类型所必须提供的内容施加约束。这有时被称为 bounded parametric polymorphism。
+
+## trait对象与多态
+
+Rust的标准类型 vector 有只能存储同种类型元素的局限。如果想要存储不同类型，可以使用枚举储存整型，浮点型和文本成员的替代方案。这意味着每个vector的每个单元存储的都是枚举类型，在每个单元中储存不同类型的数据，并仍能拥有一个代表一排单元的 vector。这在当编译代码时就知道希望可以交替使用的类型为固定集合的情况下是完全可行的。
+
+然而这样没有扩展性，有时我们希望库用户在特定情况下能够扩展有效的类型集合。例如一个图形用户接口（Graphical User Interface， GUI）工具的例子，它通过遍历列表并调用每一个项目的 draw 方法来将其绘制到屏幕上——此乃一个 GUI 工具的常见技术。
+
+我们将要创建一个叫做 gui 的库 crate，它含一个 GUI 库的结构。这个 GUI 库包含一些可供开发者使用的类型，比如 Button 或 TextField。在此之上，gui 的用户希望创建自定义的可以绘制于屏幕上的类型：比如，一个程序员可能会增加 Image，另一个可能会增加 SelectBox。
+
+在拥有继承的语言中，可以定义一个名为 Component 的类，该类上有一个 draw 方法。其他的类比如 Button、Image 和 SelectBox 会从 Component 派生并因此继承 draw 方法。它们各自都可以覆盖 draw 方法来定义自己的行为，但是框架会把所有这些类型当作是 Component 的实例，并在其上调用 draw。不过 Rust 并没有继承，我们得另寻出路。
+
+### 定义通用行为的 trait
+
+为了实现 gui 所期望的行为，让我们定义一个 `Draw` trait，其中包含名为 `draw` 的方法。
+
+接着可以定义一个存放 trait 对象（trait object） 的 vector。trait 对象指向一个实现了我们指定 trait 的类型的实例，以及一个用于在运行时查找该类型的trait方法的表。我们通过指定某种指针来创建 trait 对象，例如 `&` 引用或 `Box<T>` 智能指针，还有 `dyn` keyword， 以及指定相关的 trait。
+
+我们可以使用 trait 对象代替泛型或具体类型。任何使用 trait 对象的位置，Rust 的类型系统会在编译时确保任何在此上下文中使用的值会实现其 trait 对象的 trait。如此便无需在编译时就知晓所有可能的类型。
+
+之前提到过，Rust 刻意不将结构体与枚举称为 “对象”，以便与其他语言中的对象相区别。在结构体或枚举中，结构体字段中的数据和 impl 块中的行为是分开的，不同于其他语言中将数据和行为组合进一个称为对象的概念中。trait 对象将数据和行为两者相结合，从这种意义上说 则 其更类似其他语言中的对象。不过 trait 对象不同于传统的对象，因为不能向 trait 对象增加数据。trait 对象并不像其他语言中的对象那么通用：其（trait 对象）具体的作用是允许对通用行为进行抽象。
+
+```rust
+pub trait Draw {
+    fn draw(&self);
+}
+```
+
+定义一个带有 draw 方法的 trait Draw。
+
+```rust
+pub struct Screen{
+    pub components: Vec<Box<dyn Draw>>
+}
+```
+
+定义了一个存放了名叫 `components` 的 `vector` 的结构体 `Screen`。这个 vector 的类型是 `Box<dyn Draw>`，此为一个 trait 对象：它是 Box 中任何实现了 Draw trait 的类型的替身。
+
+在 Screen 结构体上，我们再定义一个 run 方法，该方法会对其 components 上的每一个组件调用 draw 方法
+
+```rust
+impl Screen{
+    pub fn run(&self){
+        for component in self.components.iter(){
+            component.draw();
+        }
+    }
+}
+```
+
+这与定义使用了带有 trait bound 的泛型类型参数的结构体不同。泛型类型参数一次只能替代一个具体类型，而 trait 对象则允许在运行时替代多种具体类型。
+
+> 可以定义 Screen 结构体来使用泛型和 trait bound
+>
+> ```rust
+> pub struct Screen<T: Draw> {
+>     pub components: Vec<T>,
+> }
+>
+> impl<T> Screen<T>
+>     where T: Draw {
+>     pub fn run(&self) {
+>         for component in self.components.iter() {
+>             component.draw();
+>         }
+>    }
+> }
+> ```
+>
+> 这限制了 Screen 实例必须拥有一个全是 Button 类型或者全是 TextField 类型的组件列表。如果只需要同质（相同类型）集合，则倾向于使用泛型和 trait bound，因为其定义会在编译时采用具体类型进行单态化。
+>
+> 另一方面，通过使用 trait 对象的方法，一个 Screen 实例可以存放一个既能包含 `Box<Button>`，也能包含 `Box<TextField>` 的 `Vec<T>`。
+
+现在来增加一些实现了 Draw trait 的类型，例如一个`Button`。一个 Button 结构体可能会拥有 width、height 和 label 字段。
+
+```rust
+#![allow(unused)]
+fn main() {
+    pub trait Draw {
+        fn draw(&self);
+    }
+
+    pub struct Button {
+        pub width: u32,
+        pub height: u32,
+        pub label: String,
+    }
+
+    impl Draw for Button {
+        fn draw(&self) {
+            // 实际绘制按钮的代码
+        }
+    }
+}
+```
+
+在 Button 上的 width、height 和 label 字段会和其他组件不同，比如 TextField 可能有 width、height、label 以及 placeholder 字段。每一个我们希望能在屏幕上绘制的类型都会使用不同的代码来实现 Draw trait 的 draw 方法来定义如何绘制特定的类型，像这里的 Button 类型。除了实现 Draw trait 之外，比如 Button 还可能有另一个包含按钮点击如何响应的方法的 impl 块。这类方法并不适用于像 TextField 这样的类型。
+
+如果一些库的使用者决定实现一个包含 width、height 和 options 字段的结构体 SelectBox，并且也为其实现了 Draw trait
+
+```rust
+
+use gui::Draw;
+
+struct SelectBox {
+    width: u32,
+    height: u32,
+    options: Vec<String>,
+}
+
+impl Draw for SelectBox {
+    fn draw(&self) {
+        // code to actually draw a select box
+    }
+}
+
+```
+
+库使用者现在可以在他们的 main 函数中创建一个 Screen 实例。至此可以通过将 SelectBox 和 Button 放入 `Box<T>` 转变为 trait 对象来增加组件。接着可以调用 Screen 的 run 方法，它会调用每个组件的 draw 方法。
+
+```rust
+use gui::{Screen, Button};
+
+fn main() {
+    let screen = Screen {
+        components: vec![
+            Box::new(SelectBox {
+                width: 75,
+                height: 10,
+                options: vec![
+                    String::from("Yes"),
+                    String::from("Maybe"),
+                    String::from("No")
+                ],
+            }),
+            Box::new(Button {
+                width: 50,
+                height: 10,
+                label: String::from("OK"),
+            }),
+        ],
+    };
+
+    screen.run();
+}
+```
+
+当编写库的时候，我们不知道何人会在何时增加 SelectBox 类型，不过 Screen 的实现能够操作并绘制这个新类型，因为 SelectBox 实现了 Draw trait，这意味着它实现了 draw 方法。
+
+这个概念 —— 只关心值所反映的信息而不是其具体类型 —— 类似于动态类型语言中称为 鸭子类型（duck typing）的概念：如果它走起来像一只鸭子，叫起来像一只鸭子，那么它就是一只鸭子！
+
+使用 trait 对象和 Rust 类型系统来进行类似鸭子类型操作的优势是无需在运行时检查一个值是否实现了特定方法或者担心在调用时因为值没有实现方法而产生错误。如果值没有实现 trait 对象所需的 trait 则 Rust 不会编译这些代码。
+
+例如
+
+```rust
+use gui::Screen;
+
+fn main() {
+    let screen = Screen {
+        components: vec![
+            Box::new(String::from("Hi")),
+        ],
+    };
+
+    screen.run();
+}
+```
+
+会爆出
+
+```shell
+error[E0277]: the trait bound `std::string::String: gui::Draw` is not satisfied
+  --> src/main.rs:7:13
+   |
+ 7 |             Box::new(String::from("Hi")),
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait gui::Draw is not
+   implemented for `std::string::String`
+   |
+   = note: required for the cast to the object type `gui::Draw`
+
+```
+
+因为 String 没有实现 rust_gui::Draw trait.
+
+### trait 对象执行动态分发
+
+当对泛型使用 trait bound 时编译器所进行单态化处理：编译器为每一个被泛型类型参数代替的具体类型生成了非泛型的函数和方法实现。单态化所产生的代码进行**静态分发（static dispatch）**。静态分发发生于编译器在编译时就知晓调用了什么方法的时候。这与**动态分发（dynamic dispatch）**相对，这时编译器在编译时无法知晓调用了什么方法。在动态分发的情况下，编译器会生成在运行时确定调用了什么方法的代码。
+
+当使用 trait 对象时，Rust 必须使用动态分发。编译器无法知晓所有可能用于 trait 对象代码的类型，所以它也不知道应该调用哪个类型的哪个方法实现。为此，Rust 在运行时使用 trait 对象中的指针来知晓需要调用哪个方法。动态分发也阻止编译器有选择的内联方法代码，这会相应的禁用一些优化。尽管在编写代码的过程中确实获得了额外的灵活性，但仍然需要权衡取舍。
+
+### Trait 对象要求对象安全
+
+只有 对象安全（object safe）的 trait 才可以组成 trait 对象。围绕所有使得 trait 对象安全的属性存在一些复杂的规则，不过在实践中，只涉及到两条规则。如果一个 trait 中所有的方法有如下属性时，则该 trait 是对象安全的：
+
+- 返回值类型不为 `Self`
+- 方法没有任何泛型类型参数
+
+`Self` 关键字是我们要实现 trait 或方法的类型的别名。对象安全对于 trait 对象是必须的，因为一旦有了 trait 对象，就不再知晓实现该 trait 的具体类型是什么了。如果 trait 方法返回具体的 Self 类型，但是 trait 对象忘记了其真正的类型，那么方法不可能使用已经忘却的原始具体类型。同理对于泛型类型参数来说，当使用 trait 时其会放入具体的类型参数：此具体类型变成了实现该 trait 的类型的一部分。当使用 trait 对象时其具体类型被抹去了，故无从得知放入泛型参数类型的类型是什么。
+
+例如标准库的`Clone`trait，其函数签名是：
+
+```rust
+pub trait Clone{
+    fn clone(&self)->Self;
+}
+```
+
+`String`实现了`Clone`trait，当在`String`示例上得到一个`String`实例。类似的，当调用`Vec<t>`实例的`clone`方法会得到一个`Vec<T>`实例。`clone`的签名需要知道什么类型会代替`Self`，因为这是它的返回值。
+
+如果尝试做一些违反有关 trait 对象的对象安全规则的事情，编译器会提示你。例如，如果尝试实现 `Screen` 结构体来存放实现了 `Clone` trait 而不是 `Draw` trait 的类型，像这样：
+
+```rust
+pub struct Screen {
+    pub components: Vec<Box<dyn Clone>>,
+}
+```
+
+将会得到如下错误：
+
+```shell
+error[E0038]: the trait `std::clone::Clone` cannot be made into an object
+ --> src/lib.rs:2:5
+  |
+2 |     pub components: Vec<Box<dyn Clone>>,
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `std::clone::Clone`
+  cannot be made into an object
+  |
+  = note: the trait cannot require that `Self : Sized`
+```
+
+这意味着不能以这种方式使用此 trait 作为 trait 对象。
+
+## 面向对象设计模式
+
+**状态模式**（*state pattern*）是一个面向对象设计模式。该模式的关键在于一个值有某些内部状态，体现为一系列的 **状态对象**，同时值的行为随着其内部状态而改变。状态对象共享功能：当然，在 Rust 中使用结构体和 trait 而不是对象和继承。每一个状态对象负责其自身的行为，以及该状态何时应当转移至另一个状态。持有一个状态对象的值对于不同状态的行为以及何时状态转移毫不知情。
+
+使用状态模式意味着当程序的业务需求改变时，无需改变值持有状态或者使用值的代码。我们只需更新某个状态对象中的代码来改变其规则，或者是增加更多的状态对象。
+
+# 模式与匹配
+
+模式是 Rust 中特殊的语法，它用来匹配类型中的结构，无论类型是简单还是复杂。结合使用模式和 `match` 表达式以及其他结构可以提供更多对程序控制流的支配权。模式由如下一些内容组合而成：
+
+- 字面值
+- 解构的数组、枚举、结构体或者元组
+- 变量
+- 通配符
+- 占位符
+
+这些部分描述了我们要处理的数据的形状，接着可以用其匹配值来决定程序是否拥有正确的数据来运行特定部分的代码。
+
+## 能用到模式的位置
+
+### `match`分支
+
+一个模式常用的位置是 `match` 表达式的分支。在形式上 `match` 表达式由 `match` 关键字、用于匹配的值和一个或多个分支构成，这些分支包含一个模式和在值匹配分支的模式时运行的表达式：
+
+```rust
+match VALUE{
+    PATTERN => EXPERSSION,
+    PATTERN => EXPERSSION,
+    PATTERN => EXPERSSION,
+}
+```
+
+`match` 表达式必须是 **穷尽**（*exhaustive*）的，意为 `match` 表达式所有可能的值都必须被考虑到。一个确保覆盖每个可能值的方法是在最后一个分支使用捕获所有的模式：比如，一个匹配任何值的名称永远也不会失败，因此可以覆盖所有匹配剩下的情况。
+
+有一个特定的模式 `_` 可以匹配所有情况，不过它从不绑定任何变量。这在例如希望忽略任何未指定值的情况很有用。
+
+### `if let`表达式
+
+`if let`等同于只关心一个情况的 `match` 语句，可以视为其简写。同时它对应一个可选的带有代码的 `else` 在 `if let` 中的模式不匹配时运行。
+
+也可以组合并匹配 `if let`、`else if` 和 `else if let` 表达式。这相比 `match` 表达式一次只能将一个值与模式比较提供了更多灵活性；一系列 `if let`、`else if`、`else if let` 分支并不要求其条件相互关联。
+
+```rust
+fn main() {
+    let favorite_color: Option<&str> = None;
+    let is_tuesday = false;
+    let age: Result<u8, _> = "34".parse();
+
+    if let Some(color) = favorite_color {
+        println!("Using your favorite color, {}, as the background", color);
+    } else if is_tuesday {
+        println!("Tuesday is green day!");
+    } else if let Ok(age) = age {
+        if age > 30 {
+            println!("Using purple as the background color");
+        } else {
+            println!("Using orange as the background color");
+        }
+    } else {
+        println!("Using blue as the background color");
+    }
+}
+```
+
+注意 `if let` 也可以像 `match` 分支那样引入覆盖变量：`if let Ok(age) = age` 引入了一个新的覆盖变量 `age`，它包含 `Ok` 成员中的值。这意味着 `if age > 30` 条件需要位于这个代码块内部；不能将两个条件组合为 `if let Ok(age) = age && age > 30`，因为我们希望与 30 进行比较的被覆盖的 `age` 直到大括号开始的新作用域才是有效的。
+
+`if let` 表达式的缺点在于其穷尽性没有为编译器所检查，而 `match` 表达式则检查了。如果去掉最后的 `else` 块而遗漏处理一些情况，编译器也不会警告这类可能的逻辑错误。
+
+### `while let`条件循环
+
+一个与 `if let` 结构类似的是 `while let` 条件循环，它允许只要模式匹配就一直进行 `while` 循环。
+
+```rust
+let mut stack = Vec::new();
+
+stack.push(1);
+stack.push(2);
+stack.push(3);
+
+while let Some(top) = stack.pop(){
+    println!("{}", top);
+}
+
+```
+
+`pop` 方法取出 vector 的最后一个元素并返回 `Some(value)`。如果 vector 是空的，它返回 `None`。`while` 循环只要 `pop` 返回 `Some` 就会一直运行其块中的代码。一旦其返回 `None`，`while` 循环停止。
+
+### `for`循环
+
+`for` 循环是 Rust 中最常见的循环结构，`for` 可以获取一个模式。在 `for` 循环中，模式是 `for` 关键字直接跟随的值，正如 `for x in y` 中的 `x`。
+
+```rust
+let v = vec!['a', 'b', 'c'];
+
+for (index, value) in v.iter().enumerate(){
+    println!("{}, is at index {}", value, index);
+}
+```
+
+这里使用 `enumerate` 方法适配一个迭代器来产生一个值和其在迭代器中的索引，他们位于一个元组中。第一个 `enumerate` 调用会产生元组 `(0, 'a')`。当这个值匹配模式 `(index, value)`，`index` 将会是 0 而 `value` 将会是 `'a'`，并打印出第一行输出。
+
+### `let`语句
+
+`let` 语句正是在使用模式，其更为正式的样子如下：
+
+```rust
+let PATTERN = EXPRESSION;
+```
+
+像 `let x = 5;` 这样的语句中变量名位于 `PATTERN` 位置，变量名不过是形式特别朴素的模式。我们将表达式与模式比较，并为任何找到的名称赋值。所以例如 `let x = 5;` 的情况，`x` 是一个模式代表 “将匹配到的值绑定到变量 x”。同时因为名称 `x` 是整个模式，这个模式实际上等于 “将任何值绑定到变量 `x`，不管值是什么”。
+
+为了更清楚的理解 `let` 的模式匹配方面的内容，考虑使用 `let` 和模式解构一个元组：
+
+```rust
+let (x, y, z) = (1, 2, 3);
+```
+
+这里将一个元组与模式匹配。Rust 会比较值 `(1, 2, 3)` 与模式 `(x, y, z)` 并发现此值匹配这个模式。在这个例子中，将会把 `1` 绑定到 `x`，`2` 绑定到 `y` 并将 `3` 绑定到 `z`。你可以将这个元组模式看作是将三个独立的变量模式结合在一起。
+
+如果模式中元素的数量不匹配元组中元素的数量，则整个类型不匹配，并会得到一个编译时错误。如以下代码是不行的
+
+```rust
+let (x, y) = (1, 2, 3);
+```
+
+如果希望忽略元组中一个或多个值，也可以使用 `_` 或 `..`。如果问题是模式中有太多的变量，则解决方法是通过去掉变量使得变量数与元组中元素数相等。
+
+### 函数参数
+
+函数参数也可以是模式。下面代码声明了一个叫做 `foo` 的函数，它获取一个 `i32` 类型的参数 `x`：
+
+```rust
+fn foo(x:i32){
+    // 代码
+}
+```
+
+`x` 部分就是一个模式！类似于之前对 `let` 所做的，可以在函数参数中匹配元组。
+
+```rust
+fn print_coordinates(&(x,y):&(i32, i32)){
+    println!("Current location:({}, {})", x, y);
+}
+
+fn main(){
+ let point = (3, 5);
+    print_coordinates(&point);
+}
+```
+
+这会打印出 `Current location: (3, 5)`。值 `&(3, 5)` 会匹配模式 `&(x, y)`，如此 `x` 得到了值 `3`，而 `y`得到了值 `5`。
+
+另外因为闭包类似于函数，也可以在闭包参数列表中使用模式。
+
+## Refutability（可反驳性）: 模式是否会匹配失效
+
+模式有两种形式：refutable（可反驳的）和 irrefutable（不可反驳的）。
+
+能匹配任何传递的可能值的模式被称为是 **不可反驳的**（*irrefutable*）。一个例子就是 `let x = 5;` 语句中的 `x`，因为 `x` 可以匹配任何值所以不可能会失败。对某些可能的值进行匹配会失败的模式被称为是 **可反驳的**（*refutable*）。一个这样的例子便是 `if let Some(x) = a_value` 表达式中的 `Some(x)`；如果变量 `a_value` 中的值是 `None` 而不是 `Some`，那么 `Some(x)` 模式不能匹配。
+
+模式在每个使用它的地方并不以相同的方式工作；在一些地方，模式必须是 *irrefutable* 的，意味着他们必须匹配所提供的任何值。在另一些情况，他们则可以是 refutable 的。
+
+- 函数参数、 `let` 语句和 `for` 循环只能接受不可反驳的模式，因为通过不匹配的值程序无法进行有意义的工作。
+
+- `if let` 和 `while let` 表达式被限制为只能接受可反驳的模式，因为根据定义他们意在处理可能的失败：条件表达式的功能就是根据成功或失败执行不同的操作。
+
+尝试在 Rust 要求不可反驳模式的地方使用可反驳模式或是相反都是有问题的。
+
+```rust
+let Some(x) = some_option_value;
+```
+
+如果 `some_option_value` 的值是 `None`，其不会成功匹配模式 `Some(x)`，表明这个模式是可反驳的。然而 `let` 语句只能接受不可反驳模式因为代码不能通过 `None` 值进行有效的操作。Rust 会在编译时抱怨我们尝试在要求不可反驳模式的地方使用可反驳模式：
+
+```rust
+error[E0005]: refutable pattern in local binding: `None` not covered
+ -->
+  |
+3 | let Some(x) = some_option_value;
+  |     ^^^^^^^ pattern `None` not covered
+```
+
+因为我们没有覆盖（也不可能覆盖！）到模式 `Some(x)` 的每一个可能的值, 所以 Rust 会合理地抗议。
+
+而如果为 `if let` 提供了一个总是会匹配的模式，编译器会给出一个警告：
+
+```rust
+if let x = 5 {
+    println!("{}", x);
+};
+```
+
+Rust 会抱怨将不可反驳模式用于 `if let` 是没有意义的：
+
+```rust
+warning: irrefutable if-let pattern
+ --> <anon>:2:5
+  |
+2 | /     if let x = 5 {
+3 | |     println!("{}", x);
+4 | | };
+  | |_^
+  |
+  = note: #[warn(irrefutable_let_patterns)] on by default
+```
+
+基于此，`match`匹配分支必须使用可反驳模式，除了最后一个分支需要使用能匹配任何剩余值的不可反驳模式。Rust允许我们在只有一个匹配分支的`match`中使用不可反驳模式，不过这么做不是特别有用，并可以被更简单的 `let` 语句替代。
+
+## 模式的语法
+
+### 匹配字面量
+
+```rust
+let x = 1;
+
+match x {
+    1 => println!("one"),
+    2 => println!("two"),
+    3 => println!("three"),
+    _ => println!("other"),
+}
+```
+
+### 匹配命名变量
+
+命名变量是匹配任何值的不可反驳模式，这在之前已经使用过数次。然而当其用于 `match` 表达式时情况会有些复杂。因为 `match` 会开始一个新作用域，`match` 表达式中作为模式的一部分声明的变量会覆盖 `match` 结构之外的同名变量，与所有变量一样。
+
+```rust
+fn main() {
+    let x = Some(5);
+    let y = 10;
+
+    match x {
+        Some(50) => println!("Got 50"),
+        Some(y) => println!("Matched, y = {:?}", y),
+        _ => println!("Default case, x = {:?}", x),
+    }
+
+    println!("at the end: x = {:?}, y = {:?}", x, y);
+}
+```
+
+一旦 `match` 表达式执行完毕，其作用域也就结束了，同理内部 `y` 的作用域也结束了。最后的 `println!` 会打印 `at the end: x = Some(5), y = 10`。
+
+### 多个模式
+
+在 `match` 表达式中，可以使用 `|` 语法匹配多个模式，它代表 **或**（*or*）的意思。例如，如下代码将 `x` 的值与匹配分支相比较，第一个分支有 **或** 选项，意味着如果 `x` 的值匹配此分支的任一个值，它就会运行：
+
+```rust
+let x = 2;
+
+match x{
+    1 | 2 => println!("one or two"),
+    3 => println!("three"),
+    _ => println!("anything"),
+}
+```
+
+### 通过 `..=` 匹配值的范围
+
+`..=` 语法允许你匹配一个闭区间范围内的值。在如下代码中，当模式匹配任何在此范围内的值时，该分支会执行：
+
+```rust
+let x = 5;
+
+match x {
+    1..=5 => println!("one through five"),
+    _ => println!("something else"),
+}
+```
+
+如果 `x` 是 1、2、3、4 或 5，第一个分支就会匹配。这相比使用 `|` 运算符表达相同的意思更为方便；相比 `1..=5`，使用 `|` 则不得不指定 `1 | 2 | 3 | 4 | 5`。相反指定范围就简短的多，特别是在希望匹配比如从 1 到 1000 的数字的时候！
+
+范围只允许用于数字或 `char` 值，因为编译器会在编译时检查范围不为空。`char` 和 数字值是 Rust 仅有的可以判断范围是否为空的类型。
+
+```rust
+let x = 'c';
+
+match x {
+    'a'..='j' => println!("early ASCII letter"),
+    'k'..='z' => println!("late ASCII letter"),
+    _ => println!("something else"),
+}
+```
+
+### 解构并分解值
+
+也可以使用模式来解构结构体、枚举、元组和引用，以便使用这些值的不同部分。
+
+#### 解构结构体
+
+```rust
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+fn main() {
+    let p = Point { x: 0, y: 7 };
+
+    let Point { x: a, y: b } = p;
+    assert_eq!(0, a);
+    assert_eq!(7, b);
+}
+```
+
+这段代码创建了变量 `a` 和 `b` 来匹配结构体 `p` 中的 `x` 和 `y` 字段。这个例子展示了模式中的变量名不必与结构体中的字段名一致。不过通常希望变量名与字段名一致以便于理解变量来自于哪些字段。
+
+因为变量名匹配字段名是常见的，同时因为 `let Point { x: x, y: y } = p;` 包含了很多重复，所以对于匹配结构体字段的模式存在简写：只需列出结构体字段的名称，则模式创建的变量会有相同的名称。
+
+```rust
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+fn main() {
+    let p = Point { x: 0, y: 7 };
+
+    let Point { x, y } = p;
+    assert_eq!(0, x);
+    assert_eq!(7, y);
+}
+```
+
+这段代码创建了变量 `x` 和 `y`，与变量 `p` 中的 `x` 和 `y` 相匹配。其结果是变量 `x` 和 `y` 包含结构体 `p` 中的值。
+
+也可以使用字面值作为结构体模式的一部分进行进行解构，而不是为所有的字段创建变量。这允许我们测试一些字段为特定值的同时创建其他字段的变量。
+
+```rust
+fn main() {
+    let p = Point { x: 0, y: 7 };
+
+    match p {
+        Point { x, y: 0 } => println!("On the x axis at {}", x),
+        Point { x: 0, y } => println!("On the y axis at {}", y),
+        Point { x, y } => println!("On neither axis: ({}, {})", x, y),
+    }
+}
+```
+
+第一个分支通过指定字段 `y` 匹配字面值 `0` 来匹配任何位于 `x` 轴上的点。此模式仍然创建了变量 `x` 以便在分支的代码中使用。
+
+类似的，第二个分支通过指定字段 `x` 匹配字面值 `0` 来匹配任何位于 `y` 轴上的点，并为字段 `y` 创建了变量 `y`。第三个分支没有指定任何字面值，所以其会匹配任何其他的 `Point` 并为 `x` 和 `y` 两个字段创建变量。
+
+在这个例子中，值 `p` 因为其 `x` 包含 0 而匹配第二个分支，因此会打印出 `On the y axis at 7`。
+
+#### 结构枚举
+
+解构枚举的模式需要对应枚举所定义的储存数据的方式。
+
+```rust
+enum Message {
+    Quit,
+    Move { x: i32, y: i32 },
+    Write(String),
+    ChangeColor(i32, i32, i32),
+}
+
+fn main() {
+    let msg = Message::ChangeColor(0, 160, 255);
+    match msg {
+        Message::Quit => {
+            println!("The Quit variant has no data to destructure.")
+        }
+        Message::Move { x, y } => {
+            println!(
+                "Move in the x direction {} and in the y direction {}",
+                x,
+                y
+            );
+        }
+        Message::Write(text) => println!("Text message: {}", text),
+        Message::ChangeColor(r, g, b) => {
+            println!(
+                "Change the color to red {}, green {}, and blue {}",
+                r,
+                g,
+                b
+            )
+        }
+    }
+}
+
+```
+
+对于像 `Message::Quit` 这样没有任何数据的枚举成员，不能进一步解构其值。只能匹配其字面值 `Message::Quit`，因此模式中没有任何变量。
+
+对于像 `Message::Move` 这样的类结构体枚举成员，可以采用类似于匹配结构体的模式。在成员名称后，使用大括号并列出字段变量以便将其分解以供此分支的代码使用。
+
+对于像 `Message::Write` 这样的包含一个元素，以及像 `Message::ChangeColor` 这样包含三个元素的类元组枚举成员，其模式则类似于用于解构元组的模式。模式中变量的数量必须与成员中元素的数量一致。
+
+#### 嵌套的结构体和枚举
+
+match 也可以匹配嵌套的项
+
+```rust
+enum Color {
+   Rgb(i32, i32, i32),
+   Hsv(i32, i32, i32),
+}
+
+enum Message {
+    Quit,
+    Move { x: i32, y: i32 },
+    Write(String),
+    ChangeColor(Color),
+}
+
+fn main() {
+    let msg = Message::ChangeColor(Color::Hsv(0, 160, 255));
+
+    match msg {
+        Message::ChangeColor(Color::Rgb(r, g, b)) => {
+            println!(
+                "Change the color to red {}, green {}, and blue {}",
+                r,
+                g,
+                b
+            )
+        }
+        Message::ChangeColor(Color::Hsv(h, s, v)) => {
+            println!(
+                "Change the color to hue {}, saturation {}, and value {}",
+                h,
+                s,
+                v
+            )
+        }
+        _ => ()
+    }
+}
+```
+
+`match` 表达式第一个分支的模式匹配一个包含 `Color::Rgb` 枚举成员的 `Message::ChangeColor` 枚举成员，然后模式绑定了 3 个内部的 `i32` 值。第二个分支的模式也匹配一个 `Message::ChangeColor` 枚举成员， 但是其内部的枚举会匹配 `Color::Hsv` 枚举成员。
+
+#### 结构体和元组
+
+可以用复杂的方式来混合、匹配和嵌套解构模式。
+
+```rust
+#![allow(unused)]
+fn main() {
+    struct Point {
+        x: i32,
+        y: i32,
+    }
+
+    let ((feet, inches), Point {x, y}) = ((3, 10), Point { x: 3, y: -10 });
+}
+```
+
+这将复杂的类型分解成部分组件以便可以单独使用我们感兴趣的值。
+
+### 忽略模式中的值
+
+有时忽略模式中的一些值是有用的，比如 `match` 中最后捕获全部情况的分支实际上没有做任何事，但是它确实对所有剩余情况负责。有一些简单的方法可以忽略模式中全部或部分值：使用 `_` 模式，在另一个模式中使用 `_` 模式，使用一个以下划线开始的名称，或者使用 `..` 忽略所剩部分的值。
+
+忽略值得语法不会发生所有权转移。
+
+#### 使用 `_` 忽略整个值
+
+使用过下划线（`_`）是作为匹配但不绑定任何值的通配符模式。`_` 模式既可以作为 `match` 表达式最后的分支，也可以将其用于任意模式，包括函数参数中。
+
+```rust
+fn foo(_: i32, y: i32) {
+    println!("This code only uses the y parameter: {}", y);
+}
+
+fn main() {
+    foo(3, 4);
+}
+```
+
+这段代码会完全忽略作为第一个参数传递的值 `3`，并会打印出 `This code only uses the y parameter: 4`。
+
+大部分情况当你不再需要特定函数参数时，最好修改签名不再包含无用的参数。在一些情况下忽略函数参数会变得特别有用，比如实现 trait 时，当你需要特定类型签名但是函数实现并不需要某个参数时。此时编译器就不会警告说存在未使用的函数参数，就跟使用命名参数一样。
+
+#### 使用嵌套的 `_` 忽略部分值
+
+也可以在一个模式内部使用`_` 忽略部分值，例如，当只需要测试部分值但在期望运行的代码中没有用到其他部分时。
+
+```rust
+#![allow(unused)]
+fn main() {
+    let mut setting_value = Some(5);
+    let new_setting_value = Some(10);
+
+    match (setting_value, new_setting_value) {
+        (Some(_), Some(_)) => {
+            println!("Can't overwrite an existing customized value");
+        }
+        _ => {
+            setting_value = new_setting_value;
+        }
+    }
+
+    println!("setting is {:?}", setting_value);
+}
+```
+
+这段代码会打印出 `Can't overwrite an existing customized value` 接着是 `setting is Some(5)`。在第一个匹配分支，我们不需要匹配或使用任一个 `Some` 成员中的值；重要的部分是需要测试 `setting_value` 和 `new_setting_value` 都为 `Some` 成员的情况。在这种情况，我们打印出为何不改变 `setting_value`，并且不会改变它。
+
+对于所有其他情况（`setting_value` 或 `new_setting_value` 任一为 `None`），这由第二个分支的 `_` 模式体现，这时确实希望允许 `new_setting_value` 变为 `setting_value`。
+
+也可以在一个模式中的多处使用下划线来忽略特定值，
+
+```rust
+#![allow(unused)]
+fn main() {
+    let numbers = (2, 4, 8, 16, 32);
+
+    match numbers {
+        (first, _, third, _, fifth) => {
+            println!("Some numbers: {}, {}, {}", first, third, fifth)
+        },
+    }
+}
+```
+
+这会打印出 `Some numbers: 2, 8, 32`, 值 4 和 16 会被忽略。
+
+#### 名字前以一个下划线开头来忽略未使用的变量
+
+创建了一个变量却不在任何地方使用它, Rust 通常会给你一个警告，因为这可能会是个 bug。但是有时创建一个还未使用的变量是有用的，比如正在设计原型或刚刚开始一个项目。这时希望告诉 Rust 不要警告未使用的变量，为此可以用下划线作为变量名的开头。
+
+```rust
+fn main() {
+    let _x = 5;
+    let y = 10;
+}
+```
+
+创建了两个未使用变量，不过当运行代码时只会得到 `y` 未使用的警告。
+
+只使用 `_` 和使用以下划线开头的名称有些微妙的不同：比如 `_x` 仍会将值绑定到变量，而 `_` 则完全不会绑定。
+
+```rust
+let s = Some(String::from("Hello!"));
+
+if let Some(_s) = s {
+    println!("found a string");
+}
+
+println!("{:?}", s); // 会报错，s所有权已经移到了Some(_s)里
+```
+
+`s` 的值仍然会移动进 `_s`，并阻止我们再次使用 `s`。然而只使用下划线本身，并不会绑定值。
+
+#### 用 `..` 忽略剩余值
+
+对于有多个部分的值，可以使用 `..` 语法来只使用部分并忽略其它值，同时避免不得不每一个忽略值列出下划线。`..` 模式会忽略模式中剩余的任何没有显式匹配的值部分。有一个 `Point` 结构体存放了三维空间中的坐标，而在 `match` 表达式中，我们希望只操作 `x` 坐标并忽略 `y` 和 `z` 字段的值：
+
+```rust
+#![allow(unused)]
+fn main() {
+    struct Point {
+        x: i32,
+        y: i32,
+        z: i32,
+    }
+
+    let origin = Point { x: 0, y: 0, z: 0 };
+
+    match origin {
+        Point { x, .. } => println!("x is {}", x),
+    }
+}
+```
+
+这里列出了 `x` 值，接着仅仅包含了 `..` 模式。这比不得不列出 `y: _` 和 `z: _` 要来得简单，特别是在处理有很多字段的结构体，但只涉及一到两个字段时的情形。
+
+`..` 会扩展为所需要的值的数量。
+
+```rust
+fn main() {
+    let numbers = (2, 4, 8, 16, 32);
+
+    match numbers {
+        (first, .., last) => {
+            println!("Some numbers: {}, {}", first, last);
+        },
+    }
+}
+```
+
+这里用 `first` 和 `last` 来匹配第一个和最后一个值。`..` 将匹配并忽略中间的所有值。
+
+然而使用 `..` 必须是无歧义的。如果期望匹配和忽略的值是不明确的，Rust 会报错。如下面的例子，会得到编译错误
+
+```rust
+fn main() {
+    let numbers = (2, 4, 8, 16, 32);
+
+    match numbers {
+        // second 不知道要匹配到哪个
+        (.., second, ..) => {
+            println!("Some numbers: {}", second)
+        },
+    }
+}
+
+```
+
+### 匹配守卫
+
+**匹配守卫**（*match guard*）是一个指定于 `match` 分支模式之后的额外 `if` 条件，它也必须被满足才能选择此分支。匹配守卫用于表达比单独的模式所能允许的更为复杂的情况。
+
+这个条件可以使用模式中创建的变量。
+
+```rust
+let num = Some(4);
+
+match num {
+ Some(x) if x < 5 => println!("less than five: {}", x),
+    Some(x) => println!("{}",x),
+    None => (),
+}
+```
+
+可以使用匹配守卫来解决模式中变量覆盖的问题
+
+```rust
+fn main() {
+    let x = Some(5);
+    let y = 10;
+
+    match x {
+        Some(50) => println!("Got 50"),
+        Some(n) if n == y => println!("Matched, n = {}", n),
+        _ => println!("Default case, x = {:?}", x),
+    }
+
+    println!("at the end: x = {:?}, y = {}", x, y);
+}
+```
+
+第二个匹配分支中的模式不会引入一个覆盖外部 `y` 的新变量 `y`，这意味着可以在匹配守卫中使用外部的 `y`。相比指定会覆盖外部 `y` 的模式 `Some(y)`，这里指定为 `Some(n)`。此新建的变量 `n` 并没有覆盖任何值，因为 `match` 外部没有变量 `n`。
+
+匹配守卫 `if n == y` 并不是一个模式所以没有引入新变量。这个 `y` **正是** 外部的 `y` 而不是新的覆盖变量 `y`，这样就可以通过比较 `n` 和 `y` 来表达寻找一个与外部 `y` 相同的值的概念了。
+
+也可以在匹配守卫中使用 **或** 运算符 `|` 来指定多个模式，同时匹配守卫的条件会作用于所有的模式。
+
+```rust
+#![allow(unused)]
+fn main() {
+    let x = 4;
+    let y = false;
+
+    match x {
+        4 | 5 | 6 if y => println!("yes"),
+        _ => println!("no"),
+    }
+}
+```
+
+这个匹配条件表明此分支值匹配 `x` 值为 `4`、`5` 或 `6` **同时** `y` 为 `true` 的情况。运行这段代码时会发生的是第一个分支的模式因 `x` 为 `4` 而匹配，不过匹配守卫 `if y` 为假，所以第一个分支不会被选择。代码移动到第二个分支，这会匹配，此程序会打印出 `no`。
+
+### `@`绑定
+
+*at* 运算符（`@`）允许我们在创建一个存放值的变量的同时测试其值是否匹配模式。
+
+我们希望测试 `Message::Hello` 的 `id` 字段是否位于 `3..=7` 范围内，同时也希望能将其值绑定到 `id_variable` 变量中以便此分支相关联的代码可以使用它。
+
+```rust
+#![allow(unused)]
+fn main() {
+    enum Message {
+        Hello { id: i32 },
+    }
+
+    let msg = Message::Hello { id: 5 };
+
+    match msg {
+        Message::Hello { id: id_variable @ 3..=7 } => {
+            println!("Found an id in range: {}", id_variable)
+        },
+        Message::Hello { id: 10..=12 } => {
+            println!("Found an id in another range")
+        },
+        Message::Hello { id } => {
+            println!("Found some other id: {}", id)
+        },
+    }
+}
+```
+
+上例会打印出 `Found an id in range: 5`。通过在 `3..=7` 之前指定 `id_variable @`，我们捕获了任何匹配此范围的值并同时测试其值匹配这个范围模式。
+
+第二个分支只在模式中指定了一个范围，分支相关代码代码没有一个包含 `id` 字段实际值的变量。`id` 字段的值可以是 10、11 或 12，不过这个模式的代码并不知情也不能使用 `id` 字段中的值，因为没有将 `id` 值保存进一个变量。
+
+最后一个分支指定了一个没有范围的变量，此时确实拥有可以用于分支代码的变量 `id`，因为这里使用了结构体字段简写语法。不过此分支中没有像头两个分支那样对 `id` 字段的值进行测试：任何值都会匹配此分支。
+
+使用 `@` 可以在一个模式中同时测试和保存变量值。
+
+# 不安全的Rust
+
+Rust 在编译时会强制执行的内存安全保证。然而，Rust 还隐藏有第二种语言，它不会强制执行这类内存安全保证：这被称为 **不安全 Rust**（*unsafe Rust*）。它与常规 Rust 代码无异，但是会提供额外的超级力量。
+
+不安全 Rust 之所以存在，是因为静态分析本质上是保守的。当编译器尝试确定一段代码是否支持某个保证时，拒绝一些有效的程序比接受无效程序要好一些。这必然意味着有时代码可能是合法的，但是 Rust 不这么认为！在这种情况下，可以使用不安全代码告诉编译器，“相信我，我知道我在干什么。”这么做的缺点就是你只能靠自己了：如果不安全代码出错了，比如解引用空指针，可能会导致不安全的内存使用。
+
+另一个 Rust 存在不安全一面的原因是：底层计算机硬件固有的不安全性。如果 Rust 不允许进行不安全操作，那么有些任务则根本完成不了。Rust 需要能够进行像直接与操作系统交互，甚至于编写你自己的操作系统这样的底层系统编程！这也是 Rust 语言的目标之一。
+
+## 不安全的超级力量
+
+可以通过 `unsafe` 关键字来切换到不安全 Rust，接着可以开启一个新的存放不安全代码的块。这里有五类可以在不安全 Rust 中进行而不能用于安全 Rust 的操作，它们称之为 “不安全的超级力量。” 这些超级力量是：
+
+- 解引用裸指针
+- 调用不安全的函数或方法
+- 访问或修改可变静态变量
+- 实现不安全 trait
+- 访问 `union` 的字段
+
+`unsafe` 并不会关闭借用检查器或禁用任何其他 Rust 安全检查：如果在不安全代码中使用引用，它仍会被检查。`unsafe` 关键字只是提供了那五个不会被编译器检查内存安全的功能。你仍然能在不安全块中获得某种程度的安全。
+
+`unsafe` 不意味着块中的代码就一定是危险的或者必然导致内存安全问题：其意图在于作为程序员你将会确保 `unsafe` 块中的代码以有效的方式访问内存。
+
+通过要求这五类操作必须位于标记为 `unsafe` 的块中，就能够知道任何与内存安全相关的错误必定位于 `unsafe` 块内，所以保持 `unsafe` 块尽可能小。
+
+为了尽可能隔离不安全代码，将不安全代码封装进一个安全的抽象并提供安全 API 是一个好主意。标准库的一部分被实现为在被评审过的不安全代码之上的安全抽象。这个技术防止了 `unsafe` 泄露到所有你或者用户希望使用由 `unsafe` 代码实现的功能的地方，因为使用其安全抽象是安全的。
+
+### 解引用裸指针
+
+不安全 Rust 有两个被称为 **裸指针**（*raw pointers*）的类似于引用的新类型。和引用一样，裸指针是不可变或可变的，分别写作 `*const T` 和 `*mut T`。这里的星号不是解引用运算符；它是类型名称的一部分。在裸指针的上下文中，**不可变** 意味着指针解引用之后不能直接赋值。
+
+与引用和智能指针的区别在于，记住裸指针
+
+- 允许忽略借用规则，可以同时拥有不可变和可变的指针，或多个指向相同位置的可变指针
+- 不保证指向有效的内存
+- 允许为空
+- 不能实现任何自动清理功能
+
+通过去掉 Rust 强加的保证，你可以放弃安全保证以换取性能或使用另一个语言或硬件接口的能力，此时 Rust 的保证并不适用。
+
+```rust
+#![allow(unused)]
+fn main() {
+    let mut num = 5;
+
+    let r1 = &num as *const i32;
+    let r2 = &mut num as *mut i32;
+}
+```
+
+注意这里没有引入 `unsafe` 关键字。可以在安全代码中 **创建** 裸指针，只是不能在不安全块之外 **解引用** 裸指针
+
+使用 `as` 将不可变和可变引用强转为对应的裸指针类型。因为直接从保证安全的引用来创建他们，可以知道这些特定的裸指针是有效，但是不能对任何裸指针做出如此假设。
+
+```rust
+#![allow(unused)]
+fn main() {
+    let address = 0x012345usize;
+    let r = address as *const i32;
+}
+```
+
+创建一个指向任意内存地址的裸指针。尝试使用任意内存是未定义行为：此地址可能有数据也可能没有，编译器可能会优化掉这个内存访问，或者程序可能会出现段错误（segmentation fault）。
+
+```rust
+#![allow(unused)]
+fn main() {
+    let mut num = 5;
+
+    let r1 = &num as *const i32;
+    let r2 = &mut num as *mut i32;
+
+    unsafe {
+        println!("r1 is: {}", *r1);
+        println!("r2 is: {}", *r2);
+    }
+}
+```
+
+创建一个指针不会造成任何危险；只有当访问其指向的值时才有可能遇到无效的值。
+
+上述代码创建了同时指向相同内存位置 `num` 的裸指针 `*const i32` 和 `*mut i32`。相反如果尝试创建 `num` 的不可变和可变引用，这将无法编译因为 Rust 的所有权规则不允许拥有可变引用的同时拥有不可变引用。通过裸指针，就能够同时创建同一地址的可变指针和不可变指针，若通过可变指针修改数据，则可能潜在造成数据竞争。
+
+既然存在这么多的危险，为何还要使用裸指针呢？一个主要的应用场景便是调用 C 代码接口，另一个场景是构建借用检查器无法理解的安全抽象。
+
+### 调用不安全函数或方法
+
+第二类要求使用不安全块的操作是调用不安全函数。不安全函数和方法与常规函数方法十分类似，除了其开头有一个额外的 `unsafe`。在此上下文中，关键字`unsafe`表示该函数具有调用时需要满足的要求，而 Rust 不会保证满足这些要求。通过在 `unsafe` 块中调用不安全函数，表明我们已经阅读过此函数的文档并对其是否满足函数自身的契约负责。
+
+必须在一个单独的 `unsafe` 块中调用 `dangerous` 函数。如果尝试不使用 `unsafe` 块调用 `dangerous`，则会得到一个编译错误。
+
+```rust
+#![allow(unused)]
+fn main() {
+    unsafe fn dangerous() {}
+
+    unsafe {
+        dangerous();
+    }
+}
+```
+
+不安全函数体也是有效的 `unsafe` 块，所以在不安全函数中进行另一个不安全操作时无需新增额外的 `unsafe` 块。
+
+#### 创建不安全代码的安全抽象
+
+仅仅因为函数包含不安全代码并不意味着整个函数都需要标记为不安全的。事实上，将不安全代码封装进安全函数是一个常见的抽象。
+
+作为一个例子，标准库中的函数，`split_at_mut`，它需要一些不安全代码。这个安全函数定义于可变 slice 之上：它获取一个 slice 并从给定的索引参数开始将其分为两个 slice。
+
+`split_at_mut` 的用法如下：
+
+```rust
+#![allow(unused)]
+fn main() {
+    let mut v = vec![1, 2, 3, 4, 5, 6];
+
+    let r = &mut v[..];
+
+    let (a, b) = r.split_at_mut(3);
+
+    assert_eq!(a, &mut [1, 2, 3]);
+    assert_eq!(b, &mut [4, 5, 6]);
+}
+```
+
+这个函数无法只通过安全 Rust 实现。一个尝试可能看起来像下面，它不能编译。出于简单考虑，我们将 `split_at_mut` 实现为函数而不是方法，并只处理 `i32` 值而非泛型 `T` 的 slice。
+
+```rust
+fn split_at_mut(slice: &mut [i32], mid: usize) -> (&mut [i32], &mut [i32]) {
+    let len = slice.len();
+
+    assert!(mid <= len);
+
+    (&mut slice[..mid], &mut slice[mid..])
+}
+```
+
+此函数首先获取 slice 的长度，然后通过检查参数是否小于或等于这个长度来断言参数所给定的索引位于 slice 当中。该断言意味着如果传入的索引比要分割的 slice 的索引更大，此函数在尝试使用这个索引前 panic。
+
+在一个元组中返回两个可变的 slice：一个从原始 slice 的开头直到 `mid` 索引，另一个从 `mid` 直到原 slice 的结尾。
+
+如果尝试编译代码，会得到一个错误：
+
+```shell
+error[E0499]: cannot borrow `*slice` as mutable more than once at a time
+ -->
+  |
+6 |     (&mut slice[..mid],
+  |           ----- first mutable borrow occurs here
+7 |      &mut slice[mid..])
+  |           ^^^^^ second mutable borrow occurs here
+8 | }
+  | - first borrow ends here
+```
+
+Rust 的借用检查器不能理解我们要借用这个 slice 的两个不同部分：它只知道我们借用了同一个 slice 两次。本质上借用 slice 的不同部分是可以的，因为结果两个 slice 不会重叠，不过 Rust 还没有智能到能够理解这些。当我们知道某些事是可以的而 Rust 不知道的时候，就是触及不安全代码的时候了。
+
+```rust
+#![allow(unused)]
+fn main() {
+    use std::slice;
+
+    fn split_at_mut(slice: &mut [i32], mid: usize) -> (&mut [i32], &mut [i32]) {
+        let len = slice.len();
+        let ptr = slice.as_mut_ptr();
+
+        assert!(mid <= len);
+
+        unsafe {
+            (slice::from_raw_parts_mut(ptr, mid),
+             slice::from_raw_parts_mut(ptr.add(mid), len - mid))
+        }
+    }
+}
+```
+
+slice 是一个指向一些数据的指针，并带有该 slice 的长度。可以使用 `len` 方法获取 slice 的长度，使用 `as_mut_ptr` 方法访问 slice 的裸指针。
+
+在这个例子中，因为有一个 `i32` 值的可变 slice，`as_mut_ptr` 返回一个 `*mut i32` 类型的裸指针，储存在 `ptr` 变量中。保持索引 `mid` 位于 slice 中的断言。接着是不安全代码：`slice::from_raw_parts_mut` 函数获取一个裸指针和一个长度来创建一个 slice。这里使用此函数从 `ptr` 中创建了一个有 `mid` 个项的 slice。之后在 `ptr` 上调用 `add` 方法并使用 `mid` 作为参数来获取一个从 `mid` 开始的裸指针，使用这个裸指针并以 `mid` 之后项的数量为长度创建一个 slice。
+
+`slice::from_raw_parts_mut` 函数是不安全的因为它获取一个裸指针，并必须确信这个指针是有效的。裸指针上的 `add` 方法也是不安全的，因为其必须确信此地址偏移量也是有效的指针。因此必须将 `slice::from_raw_parts_mut` 和 `add` 放入 `unsafe` 块中以便能调用它们。通过观察代码，和增加 `mid` 必然小于等于 `len` 的断言，我们可以说 `unsafe` 块中所有的裸指针将是有效的 slice 中数据的指针。这是一个可以接受的 `unsafe` 的恰当用法。
+
+注意无需将 `split_at_mut` 函数的结果标记为 `unsafe`，并可以在安全 Rust 中调用此函数。我们创建了一个不安全代码的安全抽象，其代码以一种安全的方式使用了 `unsafe` 代码，因为其只从这个函数访问的数据中创建了有效的指针。
+
+> 随意使用`slice::from_raw_parts_mut`是十分危险的，很有可能会造成崩溃。如下面的例子
+>
+> ```rust
+> #![allow(unused)]
+> fn main() {
+>     use std::slice;
+> 
+>     let address = 0x01234usize;
+>     let r = address as *mut i32;
+> 
+>     let slice: &[i32] = unsafe {
+>         slice::from_raw_parts_mut(r, 10000)
+>     };
+> }
+> ```
+>
+> 获取任意内存地址并创建了一个长为一万的 slice。虽然编译通过，并可运行，但会直接造成运行时的错误。
+
+### 使用 `extern` 函数调用外部代码
+
+ Rust 代码可能需要与其他语言编写的代码交互。为此 Rust 有一个关键字，`extern`，有助于创建和使用 **外部函数接口**（*Foreign Function Interface*， FFI）。外部函数接口是一个编程语言用以定义函数的方式，其允许不同（外部）编程语言调用这些函数。
+
+`extern` 块中声明的函数在 Rust 代码中总是不安全的。因为其他语言不会强制执行 Rust 的规则且 Rust 无法检查它们，所以确保其安全是程序员的责任：
+
+```rust
+extern "C" {
+    // C 标准库中的 abs 函数
+    fn abs(input: i32) -> i32;
+}
+
+fn main() {
+    unsafe {
+        println!("Absolute value of -3 according to C: {}", abs(-3));
+    }
+}
+```
+
+在 `extern "C"` 块中，列出了我们希望能够调用的另一个语言中的外部函数的签名和名称。`"C"` 部分定义了外部函数所使用的 **应用二进制接口**（*application binary interface*，ABI） —— ABI 定义了如何在汇编语言层面调用此函数。`"C"` ABI 是最常见的，并遵循 C 编程语言的 ABI。
+
+> 从其它语言调用 Rust 函数
+>
+> 也可以使用 `extern` 来创建一个允许其他语言调用 Rust 函数的接口。不同于 `extern` 块，就在 `fn` 关键字之前增加 `extern` 关键字并指定所用到的 ABI。还需增加 `#[no_mangle]` 注解来告诉 Rust 编译器不要 mangle 此函数的名称。*Mangling* 发生于当编译器将我们指定的函数名修改为不同的名称时，这会增加用于其他编译过程的额外信息，不过会使其名称更难以阅读。每一个编程语言的编译器都会以稍微不同的方式 mangle 函数名，所以为了使 Rust 函数能在其他语言中指定，必须禁用 Rust 编译器的 name mangling。
+>
+> 在如下的例子中，一旦其编译为动态库并从 C 语言中链接，`call_from_c` 函数就能够在 C 代码中访问：
+>
+> ```rust
+> #[no_mangle]
+> pub extern "C" fn call_from_c() {
+>     println!("Just called a Rust function from C!");
+> }
+> ```
+>
+> `extern` 的使用无需 `unsafe`。
+
+### 访问和修改可变静态变量
+
+对于 全局变量（global variables），Rust 是支持的，不过这对于 Rust 的所有权规则来说是有问题的。如果有两个线程访问相同的可变全局变量，则可能会造成数据竞争。
+
+全局变量在 Rust 中被称为 **静态**（*static*）变量。
+
+```rust
+static HELLO_WORLD:&str = "Hello, World";
+
+fn main(){
+    println!("name is: {}", HELLO_WORLD);
+}
+```
+
+`static` 变量类似于常量。通常静态变量的名称采用 `SCREAMING_SNAKE_CASE` 写法，并 **必须** 标注变量的类型，在这个例子中是 `&'static str`。静态变量只能储存拥有 `'static` 生命周期的引用，这意味着 Rust 编译器可以自己计算出其生命周期而无需显式标注。访问不可变静态变量是安全的。
+
+常量与不可变静态变量可能看起来很类似，不过一个微妙的区别是静态变量中的值有一个固定的内存地址。使用这个值总是会访问相同的地址。另一方面，常量则允许在任何被用到的时候复制其数据。
+
+常量与静态变量的另一个区别在于静态变量可以是可变的。访问和修改可变静态变量都是 **不安全** 的。
+
+```rust
+static mut COUNTER: u32 = 0;
+
+fn add_to_count(inc: u32) {
+    unsafe {
+        COUNTER += inc;
+    }
+}
+
+fn main() {
+    add_to_count(3);
+
+    unsafe {
+        println!("COUNTER: {}", COUNTER);
+    }
+}
+```
+
+就像常规变量一样，我们使用 `mut` 关键来指定可变性。任何读写 `COUNTER` 的代码都必须位于 `unsafe` 块中。这段代码可以编译并如期打印出 `COUNTER: 3`，因为这是单线程的。拥有多个线程访问 `COUNTER` 则可能导致数据竞争。
+
+拥有可以全局访问的可变数据，难以保证不存在数据竞争，这就是为何 Rust 认为可变静态变量是不安全的。
+
+### 实现不安全 trait
+
+最后一个只能用在 `unsafe` 中的操作是实现不安全 trait。当至少有一个方法中包含编译器不能验证的不变量时 trait 是不安全的。可以在 `trait` 之前增加 `unsafe` 关键字将 trait 声明为 `unsafe`，同时 trait 的实现也必须标记为 `unsafe`
+
+```rust
+#![allow(unused)]
+fn main() {
+    unsafe trait Foo {
+        // methods go here
+    }
+
+    unsafe impl Foo for i32 {
+        // method implementations go here
+    }
+}
+```
+
+编译器会自动为完全由 `Send` 和 `Sync` 类型组成的类型自动实现他们。如果实现了一个包含一些不是 `Send` 或 `Sync` 的类型，比如裸指针，并希望将此类型标记为 `Send` 或 `Sync`，则必须使用 `unsafe`。Rust 不能验证我们的类型保证可以安全的跨线程发送或在多线程间访问，所以需要我们自己进行检查并通过 `unsafe` 表明。
+
+### 访问联合体中的字段
+
+`union` 和 `struct` 类似，但是在一个实例中同时只能使用一个声明的字段。联合体主要用于和 C 代码中的联合体交互。访问联合体的字段是不安全的，因为 Rust 无法保证当前存储在联合体实例中数据的类型。
